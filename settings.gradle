@@ -1,0 +1,5 @@
+rootProject.name = 'multi-tenant-barber-saas'
+
+include 'booking-service'
+include 'availability-service'
+include 'shared-kernel'
