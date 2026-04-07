@@ -72,3 +72,10 @@ temp/
 .localstack/
 # Ignore Gradle build output directory
 build
+
+# Gradle wrapper logs / temp
+.gradle-test-kit/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Annotation processor output
+generated/

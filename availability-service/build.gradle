@@ -1,9 +1,6 @@
 plugins {
     id 'java-library'
 }
-
 dependencies {
     implementation project(':shared-kernel')
-
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
 }
