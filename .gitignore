@@ -19,3 +19,54 @@ gradle-app.setting
 .project
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
+
+
+# IntelliJ
+.idea/
+*.iml
+out/
+
+# Gradle
+.gradle/
+build/
+
+# Java
+*.class
+hs_err_pid*
+replay_pid*
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+.env.*
+*.local
+*.secret
+secrets/
+*.pem
+*.key
+
+# Docker
+docker-data/
+
+# Testing / coverage
+coverage/
+reports/
+
+# Node (in case later tools use it)
+node_modules/
+
+# Temporary files
+tmp/
+temp/
+*.swp
+*.swo
+
+# LocalStack / local generated files
+.localstack/
