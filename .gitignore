@@ -79,3 +79,8 @@ build
 
 # Annotation processor output
 generated/
+
+infra/docker/localstack/**
+!infra/docker/localstack/.gitkeep
+
+
