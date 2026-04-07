@@ -70,3 +70,5 @@ temp/
 
 # LocalStack / local generated files
 .localstack/
+# Ignore Gradle build output directory
+build
