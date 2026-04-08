@@ -6,7 +6,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 @SpringBootTest
 class AvailabilityServiceApplicationTest {
 
-    @Test
-    void contextLoads() {
-    }
+  @Test
+  void contextLoads() {}
 }

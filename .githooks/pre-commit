@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+echo "Running Spotless check..."
+./gradlew spotlessCheck
+
+echo "Running tests..."
+./gradlew test

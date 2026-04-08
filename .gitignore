@@ -83,4 +83,8 @@ generated/
 infra/docker/localstack/**
 !infra/docker/localstack/.gitkeep
 
+# Git hooks local temp files
+.githooks/*.tmp
+
+
 
