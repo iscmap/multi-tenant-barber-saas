@@ -27,10 +27,12 @@ services:
       DEBUG: 1
       AWS_DEFAULT_REGION: us-east-1
       EDGE_PORT: 4566
+      PERSISTENCE: 1
     ports:
       - "4566:4566"
     volumes:
-      - ./infra/docker/localstack:/var/lib/localstack
+      - ./infra/docker/localstack/state:/var/lib/localstack
+      - ./infra/docker/localstack/init:/etc/localstack/init
       - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:

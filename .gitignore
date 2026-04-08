@@ -80,8 +80,11 @@ build
 # Annotation processor output
 generated/
 
-infra/docker/localstack/**
-!infra/docker/localstack/.gitkeep
+infra/docker/localstack/cache/**
+infra/docker/localstack/tmp/**
+infra/docker/localstack/lib/**
+infra/docker/localstack/logs/**
+infra/docker/localstack/state/**
 
 # Git hooks local temp files
 .githooks/*.tmp
