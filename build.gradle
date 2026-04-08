@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.2.12' apply false
     id 'io.spring.dependency-management' version '1.1.6' apply false
+    id 'com.diffplug.spotless' version '8.4.0' apply false
 }
 
 allprojects {
@@ -16,6 +17,7 @@ allprojects {
 subprojects {
     apply plugin: 'java'
     apply plugin: 'io.spring.dependency-management'
+    apply plugin: 'com.diffplug.spotless'
 
     java {
         toolchain {
@@ -53,5 +55,27 @@ subprojects {
 
     tasks.withType(Test).configureEach {
         useJUnitPlatform()
+    }
+
+    spotless {
+        java {
+            target 'src/*/java/**/*.java'
+            googleJavaFormat()
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
+
+        format 'misc', {
+            target '*.md', '.gitignore'
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
+
+        groovyGradle {
+            target '*.gradle', 'settings.gradle'
+            greclipse()
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
     }
 }
