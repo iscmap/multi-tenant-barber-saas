@@ -1,22 +1,49 @@
-package com.barbersaas.booking.api.controller;
+package com.barbersaas.booking.adapters.in.web;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.barbersaas.booking.application.port.in.CreateBookingUseCase;
+import com.barbersaas.booking.application.port.in.GetBookingUseCase;
+import com.barbersaas.booking.domain.model.Booking;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(BookingController.class)
-public class BookingControllerTest {
+class BookingControllerTest {
 
   @Autowired private MockMvc mockMvc;
 
+  @MockBean private CreateBookingUseCase createBookingUseCase;
+
+  @MockBean private GetBookingUseCase getBookingUseCase;
+
   @Test
   void shouldCreateBookingContractResponse() throws Exception {
+    Booking booking =
+        Booking.builder()
+            .bookingId("temp-booking-id")
+            .shopId("shop-1")
+            .barberId("barber-1")
+            .customerId("customer-1")
+            .date(LocalDate.of(2026, 4, 10))
+            .startTime(LocalTime.of(10, 0))
+            .durationMinutes(30)
+            .serviceCode("HAIRCUT")
+            .status("PENDING")
+            .build();
+
+    when(createBookingUseCase.createBooking(any())).thenReturn(booking);
+
     String requestBody =
         """
                 {
@@ -59,6 +86,21 @@ public class BookingControllerTest {
 
   @Test
   void shouldGetBookingContractResponse() throws Exception {
+    Booking booking =
+        Booking.builder()
+            .bookingId("booking-123")
+            .shopId("shop-1")
+            .barberId("barber-1")
+            .customerId("customer-1")
+            .date(LocalDate.of(2026, 4, 10))
+            .startTime(LocalTime.of(10, 0))
+            .durationMinutes(30)
+            .serviceCode("HAIRCUT")
+            .status("PENDING")
+            .build();
+
+    when(getBookingUseCase.getBooking("booking-123")).thenReturn(booking);
+
     mockMvc
         .perform(get("/api/v1/bookings/booking-123"))
         .andExpect(status().isOk())
