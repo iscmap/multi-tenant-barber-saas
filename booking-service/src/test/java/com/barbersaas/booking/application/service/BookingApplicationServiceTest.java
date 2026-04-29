@@ -2,7 +2,8 @@ package com.barbersaas.booking.application.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.barbersaas.booking.api.contract.CreateBookingRequest;
+import com.barbersaas.booking.application.command.CreateBookingCommand;
+import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -13,9 +14,9 @@ class BookingApplicationServiceTest {
   private final BookingApplicationService service = new BookingApplicationService();
 
   @Test
-  void shouldCreateBookingFromRequest() {
-    CreateBookingRequest request =
-        CreateBookingRequest.builder()
+  void shouldCreateBookingFromCommand() {
+    CreateBookingCommand command =
+        CreateBookingCommand.builder()
             .shopId("shop-1")
             .barberId("barber-1")
             .customerId("customer-1")
@@ -25,11 +26,11 @@ class BookingApplicationServiceTest {
             .serviceCode("HAIRCUT")
             .build();
 
-    Booking booking = service.createBooking(request);
+    Booking booking = service.createBooking(command);
 
     assertEquals("temp-booking-id", booking.getBookingId());
     assertEquals("shop-1", booking.getShopId());
-    assertEquals("PENDING", booking.getStatus());
+    assertEquals(BookingStatus.PENDING, booking.getStatus());
   }
 
   @Test
@@ -38,6 +39,6 @@ class BookingApplicationServiceTest {
 
     assertEquals("booking-123", booking.getBookingId());
     assertEquals("shop-1", booking.getShopId());
-    assertEquals("PENDING", booking.getStatus());
+    assertEquals(BookingStatus.PENDING, booking.getStatus());
   }
 }

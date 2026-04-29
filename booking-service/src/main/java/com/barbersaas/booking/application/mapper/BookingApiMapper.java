@@ -3,14 +3,15 @@ package com.barbersaas.booking.application.mapper;
 import com.barbersaas.booking.api.contract.CreateBookingRequest;
 import com.barbersaas.booking.api.contract.CreateBookingResponse;
 import com.barbersaas.booking.api.contract.GetBookingResponse;
+import com.barbersaas.booking.application.command.CreateBookingCommand;
 import com.barbersaas.booking.domain.model.Booking;
 import org.springframework.stereotype.Component;
 
 @Component
 public class BookingApiMapper {
 
-  public Booking toDomainForCreate(CreateBookingRequest request) {
-    return Booking.builder()
+  public CreateBookingCommand toCommand(CreateBookingRequest request) {
+    return CreateBookingCommand.builder()
         .shopId(request.getShopId())
         .barberId(request.getBarberId())
         .customerId(request.getCustomerId())
@@ -24,7 +25,7 @@ public class BookingApiMapper {
   public CreateBookingResponse toCreateBookingResponse(Booking booking) {
     return CreateBookingResponse.builder()
         .bookingId(booking.getBookingId())
-        .status(booking.getStatus())
+        .status(booking.getStatus().name())
         .build();
   }
 
@@ -38,7 +39,7 @@ public class BookingApiMapper {
         .startTime(booking.getStartTime())
         .durationMinutes(booking.getDurationMinutes())
         .serviceCode(booking.getServiceCode())
-        .status(booking.getStatus())
+        .status(booking.getStatus().name())
         .build();
   }
 }

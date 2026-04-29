@@ -1,8 +1,9 @@
 package com.barbersaas.booking.application.service;
 
-import com.barbersaas.booking.api.contract.CreateBookingRequest;
+import com.barbersaas.booking.application.command.CreateBookingCommand;
 import com.barbersaas.booking.application.port.in.CreateBookingUseCase;
 import com.barbersaas.booking.application.port.in.GetBookingUseCase;
+import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -12,17 +13,17 @@ import org.springframework.stereotype.Service;
 public class BookingApplicationService implements CreateBookingUseCase, GetBookingUseCase {
 
   @Override
-  public Booking createBooking(CreateBookingRequest request) {
+  public Booking createBooking(CreateBookingCommand command) {
     return Booking.builder()
         .bookingId("temp-booking-id")
-        .shopId(request.getShopId())
-        .barberId(request.getBarberId())
-        .customerId(request.getCustomerId())
-        .date(request.getDate())
-        .startTime(request.getStartTime())
-        .durationMinutes(request.getDurationMinutes())
-        .serviceCode(request.getServiceCode())
-        .status("PENDING")
+        .shopId(command.getShopId())
+        .barberId(command.getBarberId())
+        .customerId(command.getCustomerId())
+        .date(command.getDate())
+        .startTime(command.getStartTime())
+        .durationMinutes(command.getDurationMinutes())
+        .serviceCode(command.getServiceCode())
+        .status(BookingStatus.PENDING)
         .build();
   }
 
@@ -37,7 +38,7 @@ public class BookingApplicationService implements CreateBookingUseCase, GetBooki
         .startTime(LocalTime.of(10, 0))
         .durationMinutes(30)
         .serviceCode("HAIRCUT")
-        .status("PENDING")
+        .status(BookingStatus.PENDING)
         .build();
   }
 }
