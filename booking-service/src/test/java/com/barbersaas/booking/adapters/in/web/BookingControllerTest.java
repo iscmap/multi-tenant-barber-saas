@@ -13,6 +13,7 @@ import com.barbersaas.booking.adapters.in.web.filter.CorrelationIdFilter;
 import com.barbersaas.booking.application.mapper.BookingApiMapper;
 import com.barbersaas.booking.application.port.in.CreateBookingUseCase;
 import com.barbersaas.booking.application.port.in.GetBookingUseCase;
+import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -45,7 +46,7 @@ class BookingControllerTest {
             .startTime(LocalTime.of(10, 0))
             .durationMinutes(30)
             .serviceCode("HAIRCUT")
-            .status("PENDING")
+            .status(BookingStatus.PENDING)
             .build();
 
     when(createBookingUseCase.createBooking(any())).thenReturn(booking);
@@ -115,7 +116,7 @@ class BookingControllerTest {
             .startTime(LocalTime.of(10, 0))
             .durationMinutes(30)
             .serviceCode("HAIRCUT")
-            .status("PENDING")
+            .status(BookingStatus.PENDING)
             .build();
 
     when(getBookingUseCase.getBooking("booking-123")).thenReturn(booking);
