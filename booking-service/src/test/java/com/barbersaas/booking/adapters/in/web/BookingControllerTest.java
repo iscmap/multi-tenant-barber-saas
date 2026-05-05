@@ -38,7 +38,7 @@ class BookingControllerTest {
   void shouldCreateBookingContractResponse() throws Exception {
     Booking booking =
         Booking.builder()
-            .bookingId("temp-booking-id")
+            .bookingId("generated-booking-id")
             .shopId("shop-1")
             .barberId("barber-1")
             .customerId("customer-1")
@@ -72,7 +72,7 @@ class BookingControllerTest {
                 .content(requestBody))
         .andExpect(status().isCreated())
         .andExpect(header().string("X-Correlation-Id", "corr-123"))
-        .andExpect(jsonPath("$.bookingId").value("temp-booking-id"))
+        .andExpect(jsonPath("$.bookingId").value("generated-booking-id"))
         .andExpect(jsonPath("$.status").value("PENDING"));
   }
 
@@ -128,5 +128,20 @@ class BookingControllerTest {
         .andExpect(jsonPath("$.bookingId").value("booking-123"))
         .andExpect(jsonPath("$.shopId").value("shop-1"))
         .andExpect(jsonPath("$.status").value("PENDING"));
+  }
+
+  @Test
+  void shouldReturnNotFoundProblemWhenBookingDoesNotExist() throws Exception {
+    when(getBookingUseCase.getBooking("missing-id"))
+        .thenThrow(new IllegalArgumentException("Booking not found: missing-id"));
+
+    mockMvc
+        .perform(get("/api/v1/bookings/missing-id").header("X-Correlation-Id", "corr-999"))
+        .andExpect(status().isNotFound())
+        .andExpect(header().string("X-Correlation-Id", "corr-999"))
+        .andExpect(jsonPath("$.title").value("Resource not found"))
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.detail").value("Booking not found: missing-id"))
+        .andExpect(jsonPath("$.correlationId").value("corr-999"));
   }
 }
