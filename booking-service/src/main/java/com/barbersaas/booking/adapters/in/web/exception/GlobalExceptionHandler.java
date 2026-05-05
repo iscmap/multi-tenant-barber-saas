@@ -57,6 +57,22 @@ public class GlobalExceptionHandler {
     return ResponseEntity.badRequest().body(problem);
   }
 
+  @ExceptionHandler(IllegalArgumentException.class)
+  public ResponseEntity<ApiProblem> handleIllegalArgumentException(
+      IllegalArgumentException exception) {
+    ApiProblem problem =
+        ApiProblem.builder()
+            .type("https://example.com/problems/not-found")
+            .title("Resource not found")
+            .status(HttpStatus.NOT_FOUND.value())
+            .detail(exception.getMessage())
+            .instance(null)
+            .correlationId(CorrelationIdHolder.get())
+            .timestamp(OffsetDateTime.now())
+            .build();
+    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+  }
+
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiProblem> handleGenericError(Exception exception) {
     ApiProblem problem =

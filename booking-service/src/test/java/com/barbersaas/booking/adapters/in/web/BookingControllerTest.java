@@ -1,5 +1,7 @@
 package com.barbersaas.booking.adapters.in.web;
 
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.blankOrNullString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -28,17 +30,19 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import({BookingApiMapper.class, GlobalExceptionHandler.class, CorrelationIdFilter.class})
 class BookingControllerTest {
 
-  @Autowired private MockMvc mockMvc;
+  @Autowired
+  private MockMvc mockMvc;
 
-  @MockBean private CreateBookingUseCase createBookingUseCase;
+  @MockBean
+  private CreateBookingUseCase createBookingUseCase;
 
-  @MockBean private GetBookingUseCase getBookingUseCase;
+  @MockBean
+  private GetBookingUseCase getBookingUseCase;
 
   @Test
   void shouldCreateBookingContractResponse() throws Exception {
-    Booking booking =
-        Booking.builder()
-            .bookingId("temp-booking-id")
+    Booking booking = Booking.builder()
+            .bookingId("generated-booking-id")
             .shopId("shop-1")
             .barberId("barber-1")
             .customerId("customer-1")
@@ -51,8 +55,7 @@ class BookingControllerTest {
 
     when(createBookingUseCase.createBooking(any())).thenReturn(booking);
 
-    String requestBody =
-        """
+    String requestBody = """
                 {
                   "shopId": "shop-1",
                   "barberId": "barber-1",
@@ -64,22 +67,19 @@ class BookingControllerTest {
                 }
                 """;
 
-    mockMvc
-        .perform(
-            post("/api/v1/bookings")
-                .header("X-Correlation-Id", "corr-123")
-                .contentType("application/json")
-                .content(requestBody))
-        .andExpect(status().isCreated())
-        .andExpect(header().string("X-Correlation-Id", "corr-123"))
-        .andExpect(jsonPath("$.bookingId").value("temp-booking-id"))
-        .andExpect(jsonPath("$.status").value("PENDING"));
+    mockMvc.perform(post("/api/v1/bookings")
+                    .header("X-Correlation-Id", "corr-123")
+                    .contentType("application/json")
+                    .content(requestBody))
+            .andExpect(status().isCreated())
+            .andExpect(header().string("X-Correlation-Id", "corr-123"))
+            .andExpect(jsonPath("$.bookingId").value("generated-booking-id"))
+            .andExpect(jsonPath("$.status").value("PENDING"));
   }
 
   @Test
   void shouldReturnProblemJsonForValidationError() throws Exception {
-    String requestBody =
-        """
+    String requestBody = """
                 {
                   "shopId": "",
                   "barberId": "barber-1",
@@ -91,23 +91,20 @@ class BookingControllerTest {
                 }
                 """;
 
-    mockMvc
-        .perform(
-            post("/api/v1/bookings")
-                .header("X-Correlation-Id", "corr-456")
-                .contentType("application/json")
-                .content(requestBody))
-        .andExpect(status().isBadRequest())
-        .andExpect(header().string("X-Correlation-Id", "corr-456"))
-        .andExpect(jsonPath("$.title").value("Validation error"))
-        .andExpect(jsonPath("$.status").value(400))
-        .andExpect(jsonPath("$.correlationId").value("corr-456"));
+    mockMvc.perform(post("/api/v1/bookings")
+                    .header("X-Correlation-Id", "corr-456")
+                    .contentType("application/json")
+                    .content(requestBody))
+            .andExpect(status().isBadRequest())
+            .andExpect(header().string("X-Correlation-Id", "corr-456"))
+            .andExpect(jsonPath("$.title").value("Validation error"))
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.correlationId").value("corr-456"));
   }
 
   @Test
   void shouldGetBookingContractResponse() throws Exception {
-    Booking booking =
-        Booking.builder()
+    Booking booking = Booking.builder()
             .bookingId("booking-123")
             .shopId("shop-1")
             .barberId("barber-1")
@@ -121,12 +118,27 @@ class BookingControllerTest {
 
     when(getBookingUseCase.getBooking("booking-123")).thenReturn(booking);
 
-    mockMvc
-        .perform(get("/api/v1/bookings/booking-123").header("X-Correlation-Id", "corr-789"))
-        .andExpect(status().isOk())
-        .andExpect(header().string("X-Correlation-Id", "corr-789"))
-        .andExpect(jsonPath("$.bookingId").value("booking-123"))
-        .andExpect(jsonPath("$.shopId").value("shop-1"))
-        .andExpect(jsonPath("$.status").value("PENDING"));
+    mockMvc.perform(get("/api/v1/bookings/booking-123")
+                    .header("X-Correlation-Id", "corr-789"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("X-Correlation-Id", "corr-789"))
+            .andExpect(jsonPath("$.bookingId").value("booking-123"))
+            .andExpect(jsonPath("$.shopId").value("shop-1"))
+            .andExpect(jsonPath("$.status").value("PENDING"));
+  }
+
+  @Test
+  void shouldReturnNotFoundProblemWhenBookingDoesNotExist() throws Exception {
+    when(getBookingUseCase.getBooking("missing-id"))
+            .thenThrow(new IllegalArgumentException("Booking not found: missing-id"));
+
+    mockMvc.perform(get("/api/v1/bookings/missing-id")
+                    .header("X-Correlation-Id", "corr-999"))
+            .andExpect(status().isNotFound())
+            .andExpect(header().string("X-Correlation-Id", "corr-999"))
+            .andExpect(jsonPath("$.title").value("Resource not found"))
+            .andExpect(jsonPath("$.status").value(404))
+            .andExpect(jsonPath("$.detail").value("Booking not found: missing-id"))
+            .andExpect(jsonPath("$.correlationId").value("corr-999"));
   }
 }

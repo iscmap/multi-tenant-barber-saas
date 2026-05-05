@@ -1,7 +1,9 @@
 package com.barbersaas.booking.application.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.barbersaas.booking.adapters.out.persistence.memory.InMemoryBookingRepository;
 import com.barbersaas.booking.application.command.CreateBookingCommand;
 import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
@@ -11,7 +13,9 @@ import org.junit.jupiter.api.Test;
 
 class BookingApplicationServiceTest {
 
-  private final BookingApplicationService service = new BookingApplicationService();
+  private final InMemoryBookingRepository repository = new InMemoryBookingRepository();
+  private final BookingApplicationService service =
+      new BookingApplicationService(repository, repository);
 
   @Test
   void shouldCreateBookingFromCommand() {
@@ -34,11 +38,31 @@ class BookingApplicationServiceTest {
   }
 
   @Test
-  void shouldReturnBookingById() {
-    Booking booking = service.getBooking("booking-123");
+  void shouldReturnSavedBookingById() {
+    CreateBookingCommand command =
+        CreateBookingCommand.builder()
+            .shopId("shop-1")
+            .barberId("barber-1")
+            .customerId("customer-1")
+            .date(LocalDate.of(2026, 4, 10))
+            .startTime(LocalTime.of(10, 0))
+            .durationMinutes(30)
+            .serviceCode("HAIRCUT")
+            .build();
 
-    assertEquals("booking-123", booking.getBookingId());
-    assertEquals("shop-1", booking.getShopId());
-    assertEquals(BookingStatus.PENDING, booking.getStatus());
+    Booking createdBooking = service.createBooking(command);
+    Booking loadedBooking = service.getBooking(createdBooking.getBookingId());
+
+    assertEquals(createdBooking.getBookingId(), loadedBooking.getBookingId());
+    assertEquals("shop-1", loadedBooking.getShopId());
+    assertEquals(BookingStatus.PENDING, loadedBooking.getStatus());
+  }
+
+  @Test
+  void shouldThrowWhenBookingDoesNotExist() {
+    IllegalArgumentException exception =
+        assertThrows(IllegalArgumentException.class, () -> service.getBooking("missing-id"));
+
+    assertEquals("Booking not found: missing-id", exception.getMessage());
   }
 }
