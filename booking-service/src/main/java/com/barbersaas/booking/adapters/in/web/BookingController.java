@@ -7,6 +7,7 @@ import com.barbersaas.booking.application.command.CreateBookingCommand;
 import com.barbersaas.booking.application.mapper.BookingApiMapper;
 import com.barbersaas.booking.application.port.in.CreateBookingUseCase;
 import com.barbersaas.booking.application.port.in.GetBookingUseCase;
+import com.barbersaas.booking.application.query.GetBookingQuery;
 import com.barbersaas.booking.domain.model.Booking;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -45,7 +46,8 @@ public class BookingController {
 
   @GetMapping("/{bookingId}")
   public GetBookingResponse getBooking(@PathVariable String bookingId) {
-    Booking booking = getBookingUseCase.getBooking(bookingId);
+    GetBookingQuery query = GetBookingQuery.builder().bookingId(bookingId).build();
+    Booking booking = getBookingUseCase.getBooking(query);
     return bookingApiMapper.toGetBookingResponse(booking);
   }
 }
