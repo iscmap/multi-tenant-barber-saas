@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.barbersaas.booking.adapters.out.persistence.memory.InMemoryBookingRepository;
 import com.barbersaas.booking.application.command.CreateBookingCommand;
+import com.barbersaas.booking.application.query.GetBookingQuery;
 import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
 import java.time.LocalDate;
@@ -51,7 +52,11 @@ class BookingApplicationServiceTest {
             .build();
 
     Booking createdBooking = service.createBooking(command);
-    Booking loadedBooking = service.getBooking(createdBooking.getBookingId());
+
+    GetBookingQuery query =
+        GetBookingQuery.builder().bookingId(createdBooking.getBookingId()).build();
+
+    Booking loadedBooking = service.getBooking(query);
 
     assertEquals(createdBooking.getBookingId(), loadedBooking.getBookingId());
     assertEquals("shop-1", loadedBooking.getShopId());
@@ -60,8 +65,11 @@ class BookingApplicationServiceTest {
 
   @Test
   void shouldThrowWhenBookingDoesNotExist() {
+
+    GetBookingQuery query = GetBookingQuery.builder().bookingId("missing-id").build();
+
     IllegalArgumentException exception =
-        assertThrows(IllegalArgumentException.class, () -> service.getBooking("missing-id"));
+        assertThrows(IllegalArgumentException.class, () -> service.getBooking(query));
 
     assertEquals("Booking not found: missing-id", exception.getMessage());
   }

@@ -119,7 +119,7 @@ class BookingControllerTest {
             .status(BookingStatus.PENDING)
             .build();
 
-    when(getBookingUseCase.getBooking("booking-123")).thenReturn(booking);
+    when(getBookingUseCase.getBooking(any())).thenReturn(booking);
 
     mockMvc
         .perform(get("/api/v1/bookings/booking-123").header("X-Correlation-Id", "corr-789"))
@@ -132,7 +132,7 @@ class BookingControllerTest {
 
   @Test
   void shouldReturnNotFoundProblemWhenBookingDoesNotExist() throws Exception {
-    when(getBookingUseCase.getBooking("missing-id"))
+    when(getBookingUseCase.getBooking(any()))
         .thenThrow(new IllegalArgumentException("Booking not found: missing-id"));
 
     mockMvc
