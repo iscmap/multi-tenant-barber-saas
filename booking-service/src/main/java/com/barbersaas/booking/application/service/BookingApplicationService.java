@@ -8,6 +8,7 @@ import com.barbersaas.booking.application.port.out.SaveBookingPort;
 import com.barbersaas.booking.application.query.GetBookingQuery;
 import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
+import com.barbersaas.booking.domain.rule.BookingStateTransitions;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -45,5 +46,13 @@ public class BookingApplicationService implements CreateBookingUseCase, GetBooki
         .loadById(query.getBookingId())
         .orElseThrow(
             () -> new IllegalArgumentException("Booking not found: " + query.getBookingId()));
+  }
+
+  public Booking confirmBookingState(Booking booking) {
+    return BookingStateTransitions.confirm(booking);
+  }
+
+  public Booking rejectBookingState(Booking booking) {
+    return BookingStateTransitions.reject(booking);
   }
 }

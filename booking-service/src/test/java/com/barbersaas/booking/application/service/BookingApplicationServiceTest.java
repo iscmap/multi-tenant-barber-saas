@@ -73,4 +73,66 @@ class BookingApplicationServiceTest {
 
     assertEquals("Booking not found: missing-id", exception.getMessage());
   }
+
+  @Test
+  void shouldConfirmBookingState() {
+    Booking booking =
+        Booking.builder()
+            .bookingId("booking-10")
+            .shopId("shop-1")
+            .barberId("barber-1")
+            .customerId("customer-1")
+            .date(LocalDate.of(2026, 4, 10))
+            .startTime(LocalTime.of(10, 0))
+            .durationMinutes(30)
+            .serviceCode("HAIRCUT")
+            .status(BookingStatus.PENDING)
+            .build();
+
+    Booking confirmedBooking = service.confirmBookingState(booking);
+
+    assertEquals(BookingStatus.CONFIRMED, confirmedBooking.getStatus());
+  }
+
+  @Test
+  void shouldRejectBookingState() {
+    Booking booking =
+        Booking.builder()
+            .bookingId("booking-11")
+            .shopId("shop-1")
+            .barberId("barber-1")
+            .customerId("customer-1")
+            .date(LocalDate.of(2026, 4, 10))
+            .startTime(LocalTime.of(10, 0))
+            .durationMinutes(30)
+            .serviceCode("HAIRCUT")
+            .status(BookingStatus.PENDING)
+            .build();
+
+    Booking rejectedBooking = service.rejectBookingState(booking);
+
+    assertEquals(BookingStatus.REJECTED, rejectedBooking.getStatus());
+  }
+
+  @Test
+  void shouldFailInvalidConfirmTransition() {
+    Booking booking =
+        Booking.builder()
+            .bookingId("booking-12")
+            .shopId("shop-1")
+            .barberId("barber-1")
+            .customerId("customer-1")
+            .date(LocalDate.of(2026, 4, 10))
+            .startTime(LocalTime.of(10, 0))
+            .durationMinutes(30)
+            .serviceCode("HAIRCUT")
+            .status(BookingStatus.CONFIRMED)
+            .build();
+
+    IllegalStateException exception =
+        assertThrows(IllegalStateException.class, () -> service.confirmBookingState(booking));
+
+    assertEquals(
+        "Invalid booking status transition from CONFIRMED to CONFIRMED", exception.getMessage());
+  }
 }
