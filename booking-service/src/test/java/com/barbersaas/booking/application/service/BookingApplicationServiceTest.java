@@ -2,9 +2,15 @@ package com.barbersaas.booking.application.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.barbersaas.booking.adapters.out.persistence.memory.InMemoryBookingRepository;
 import com.barbersaas.booking.application.command.CreateBookingCommand;
+import com.barbersaas.booking.application.factory.BookingEventFactory;
+import com.barbersaas.booking.application.port.out.event.PublishBookingCreatedEventPort;
 import com.barbersaas.booking.application.query.GetBookingQuery;
 import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
@@ -15,8 +21,12 @@ import org.junit.jupiter.api.Test;
 class BookingApplicationServiceTest {
 
   private final InMemoryBookingRepository repository = new InMemoryBookingRepository();
+  private final PublishBookingCreatedEventPort publishBookingCreatedEventPort =
+      mock(PublishBookingCreatedEventPort.class);
+  private final BookingEventFactory bookingEventFactory = new BookingEventFactory();
   private final BookingApplicationService service =
-      new BookingApplicationService(repository, repository);
+      new BookingApplicationService(
+          repository, repository, publishBookingCreatedEventPort, bookingEventFactory);
 
   @Test
   void shouldCreateBookingFromCommand() {
@@ -33,9 +43,10 @@ class BookingApplicationServiceTest {
 
     Booking booking = service.createBooking(command);
 
-    assertEquals("temp-booking-id", booking.getBookingId());
+    assertTrue(booking.getBookingId() != null && !booking.getBookingId().isBlank());
     assertEquals("shop-1", booking.getShopId());
     assertEquals(BookingStatus.PENDING, booking.getStatus());
+    verify(publishBookingCreatedEventPort).publish(any());
   }
 
   @Test
@@ -65,7 +76,6 @@ class BookingApplicationServiceTest {
 
   @Test
   void shouldThrowWhenBookingDoesNotExist() {
-
     GetBookingQuery query = GetBookingQuery.builder().bookingId("missing-id").build();
 
     IllegalArgumentException exception =
