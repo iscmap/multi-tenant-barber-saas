@@ -88,4 +88,21 @@ public class GlobalExceptionHandler {
 
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(problem);
   }
+
+  @ExceptionHandler(org.springframework.web.bind.MissingRequestHeaderException.class)
+  public ResponseEntity<ApiProblem> handleMissingRequestHeader(
+      org.springframework.web.bind.MissingRequestHeaderException exception) {
+    ApiProblem problem =
+        ApiProblem.builder()
+            .type("https://example.com/problems/missing-header")
+            .title("Missing required header")
+            .status(HttpStatus.BAD_REQUEST.value())
+            .detail(exception.getHeaderName() + " header is required")
+            .instance(null)
+            .correlationId(CorrelationIdHolder.get())
+            .timestamp(OffsetDateTime.now())
+            .build();
+
+    return ResponseEntity.badRequest().body(problem);
+  }
 }

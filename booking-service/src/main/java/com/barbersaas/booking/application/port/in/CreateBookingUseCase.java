@@ -1,9 +1,9 @@
 package com.barbersaas.booking.application.port.in;
 
-import com.barbersaas.booking.application.command.CreateBookingCommand;
+import com.barbersaas.booking.application.command.idempotency.CreateBookingWithIdempotencyCommand;
 import com.barbersaas.booking.domain.model.Booking;
 
 public interface CreateBookingUseCase {
 
-  Booking createBooking(CreateBookingCommand command);
+  Booking createBooking(CreateBookingWithIdempotencyCommand command);
 }

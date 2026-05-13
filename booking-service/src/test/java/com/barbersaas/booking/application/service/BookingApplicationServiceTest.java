@@ -6,32 +6,43 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.barbersaas.booking.adapters.out.idempotency.memory.InMemoryIdempotencyRepository;
 import com.barbersaas.booking.adapters.out.persistence.memory.InMemoryBookingRepository;
 import com.barbersaas.booking.application.command.CreateBookingCommand;
+import com.barbersaas.booking.application.command.idempotency.CreateBookingWithIdempotencyCommand;
 import com.barbersaas.booking.application.factory.BookingEventFactory;
 import com.barbersaas.booking.application.port.out.event.PublishBookingCreatedEventPort;
 import com.barbersaas.booking.application.query.GetBookingQuery;
 import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import org.junit.jupiter.api.Test;
 
 class BookingApplicationServiceTest {
 
   private final InMemoryBookingRepository repository = new InMemoryBookingRepository();
+  private final InMemoryIdempotencyRepository idempotencyRepository =
+      new InMemoryIdempotencyRepository();
   private final PublishBookingCreatedEventPort publishBookingCreatedEventPort =
       mock(PublishBookingCreatedEventPort.class);
   private final BookingEventFactory bookingEventFactory = new BookingEventFactory();
   private final BookingApplicationService service =
       new BookingApplicationService(
-          repository, repository, publishBookingCreatedEventPort, bookingEventFactory);
+          repository,
+          repository,
+          publishBookingCreatedEventPort,
+          bookingEventFactory,
+          idempotencyRepository,
+          idempotencyRepository);
 
   @Test
   void shouldCreateBookingFromCommand() {
-    CreateBookingCommand command =
+    CreateBookingCommand createBookingCommand =
         CreateBookingCommand.builder()
             .shopId("shop-1")
             .barberId("barber-1")
@@ -40,6 +51,12 @@ class BookingApplicationServiceTest {
             .startTime(LocalTime.of(10, 0))
             .durationMinutes(30)
             .serviceCode("HAIRCUT")
+            .build();
+
+    CreateBookingWithIdempotencyCommand command =
+        CreateBookingWithIdempotencyCommand.builder()
+            .idempotencyKey("idem-1")
+            .createBookingCommand(createBookingCommand)
             .build();
 
     Booking booking = service.createBooking(command);
@@ -52,8 +69,8 @@ class BookingApplicationServiceTest {
   }
 
   @Test
-  void shouldReturnSavedBookingById() {
-    CreateBookingCommand command =
+  void shouldReturnSameBookingForSameIdempotencyKey() {
+    CreateBookingCommand createBookingCommand =
         CreateBookingCommand.builder()
             .shopId("shop-1")
             .barberId("barber-1")
@@ -62,6 +79,38 @@ class BookingApplicationServiceTest {
             .startTime(LocalTime.of(10, 0))
             .durationMinutes(30)
             .serviceCode("HAIRCUT")
+            .build();
+
+    CreateBookingWithIdempotencyCommand command =
+        CreateBookingWithIdempotencyCommand.builder()
+            .idempotencyKey("idem-same")
+            .createBookingCommand(createBookingCommand)
+            .build();
+
+    Booking firstBooking = service.createBooking(command);
+    Booking secondBooking = service.createBooking(command);
+
+    assertEquals(firstBooking.getBookingId(), secondBooking.getBookingId());
+    verify(publishBookingCreatedEventPort, times(1)).publish(any());
+  }
+
+  @Test
+  void shouldReturnSavedBookingById() {
+    CreateBookingCommand createBookingCommand =
+        CreateBookingCommand.builder()
+            .shopId("shop-1")
+            .barberId("barber-1")
+            .customerId("customer-1")
+            .date(LocalDate.of(2026, 4, 10))
+            .startTime(LocalTime.of(10, 0))
+            .durationMinutes(30)
+            .serviceCode("HAIRCUT")
+            .build();
+
+    CreateBookingWithIdempotencyCommand command =
+        CreateBookingWithIdempotencyCommand.builder()
+            .idempotencyKey("idem-2")
+            .createBookingCommand(createBookingCommand)
             .build();
 
     Booking createdBooking = service.createBooking(command);
@@ -100,7 +149,7 @@ class BookingApplicationServiceTest {
             .durationMinutes(30)
             .serviceCode("HAIRCUT")
             .status(BookingStatus.PENDING)
-            .createdAt(java.time.LocalDateTime.of(2026, 4, 10, 10, 0))
+            .createdAt(LocalDateTime.of(2026, 4, 10, 10, 0))
             .build();
 
     Booking confirmedBooking = service.confirmBookingState(booking);
@@ -121,7 +170,7 @@ class BookingApplicationServiceTest {
             .durationMinutes(30)
             .serviceCode("HAIRCUT")
             .status(BookingStatus.PENDING)
-            .createdAt(java.time.LocalDateTime.of(2026, 4, 10, 10, 0))
+            .createdAt(LocalDateTime.of(2026, 4, 10, 10, 0))
             .build();
 
     Booking rejectedBooking = service.rejectBookingState(booking);
@@ -142,7 +191,7 @@ class BookingApplicationServiceTest {
             .durationMinutes(30)
             .serviceCode("HAIRCUT")
             .status(BookingStatus.CONFIRMED)
-            .createdAt(java.time.LocalDateTime.of(2026, 4, 10, 10, 0))
+            .createdAt(LocalDateTime.of(2026, 4, 10, 10, 0))
             .build();
 
     IllegalStateException exception =
