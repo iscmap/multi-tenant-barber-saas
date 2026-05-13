@@ -1,6 +1,7 @@
 package com.barbersaas.booking.application.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,6 +47,7 @@ class BookingApplicationServiceTest {
     assertTrue(booking.getBookingId() != null && !booking.getBookingId().isBlank());
     assertEquals("shop-1", booking.getShopId());
     assertEquals(BookingStatus.PENDING, booking.getStatus());
+    assertNotNull(booking.getCreatedAt());
     verify(publishBookingCreatedEventPort).publish(any());
   }
 
@@ -72,6 +74,7 @@ class BookingApplicationServiceTest {
     assertEquals(createdBooking.getBookingId(), loadedBooking.getBookingId());
     assertEquals("shop-1", loadedBooking.getShopId());
     assertEquals(BookingStatus.PENDING, loadedBooking.getStatus());
+    assertNotNull(loadedBooking.getCreatedAt());
   }
 
   @Test
@@ -97,6 +100,7 @@ class BookingApplicationServiceTest {
             .durationMinutes(30)
             .serviceCode("HAIRCUT")
             .status(BookingStatus.PENDING)
+            .createdAt(java.time.LocalDateTime.of(2026, 4, 10, 10, 0))
             .build();
 
     Booking confirmedBooking = service.confirmBookingState(booking);
@@ -117,6 +121,7 @@ class BookingApplicationServiceTest {
             .durationMinutes(30)
             .serviceCode("HAIRCUT")
             .status(BookingStatus.PENDING)
+            .createdAt(java.time.LocalDateTime.of(2026, 4, 10, 10, 0))
             .build();
 
     Booking rejectedBooking = service.rejectBookingState(booking);
@@ -137,6 +142,7 @@ class BookingApplicationServiceTest {
             .durationMinutes(30)
             .serviceCode("HAIRCUT")
             .status(BookingStatus.CONFIRMED)
+            .createdAt(java.time.LocalDateTime.of(2026, 4, 10, 10, 0))
             .build();
 
     IllegalStateException exception =
