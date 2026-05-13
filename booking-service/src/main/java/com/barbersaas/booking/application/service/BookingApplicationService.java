@@ -13,6 +13,7 @@ import com.barbersaas.booking.domain.model.Booking;
 import com.barbersaas.booking.domain.rule.BookingStateTransitions;
 import com.barbersaas.shared.events.contract.BookingCreatedEvent;
 import com.barbersaas.shared.events.envelope.EventEnvelope;
+import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -47,7 +48,9 @@ public class BookingApplicationService implements CreateBookingUseCase, GetBooki
             .durationMinutes(command.getDurationMinutes())
             .serviceCode(command.getServiceCode())
             .status(BookingStatus.PENDING)
+            .createdAt(LocalDateTime.now())
             .build();
+
     Booking savedBooking = saveBookingPort.save(booking);
 
     EventEnvelope<BookingCreatedEvent> eventEnvelope =

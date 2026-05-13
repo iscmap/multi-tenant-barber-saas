@@ -13,9 +13,11 @@ import com.barbersaas.booking.adapters.in.web.filter.CorrelationIdFilter;
 import com.barbersaas.booking.application.mapper.BookingApiMapper;
 import com.barbersaas.booking.application.port.in.CreateBookingUseCase;
 import com.barbersaas.booking.application.port.in.GetBookingUseCase;
+import com.barbersaas.booking.application.port.in.timeout.RejectTimedOutBookingsUseCase;
 import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +36,8 @@ class BookingControllerTest {
 
   @MockBean private GetBookingUseCase getBookingUseCase;
 
+  @MockBean private RejectTimedOutBookingsUseCase rejectTimedOutBookingsUseCase;
+
   @Test
   void shouldCreateBookingContractResponse() throws Exception {
     Booking booking =
@@ -47,6 +51,7 @@ class BookingControllerTest {
             .durationMinutes(30)
             .serviceCode("HAIRCUT")
             .status(BookingStatus.PENDING)
+            .createdAt(LocalDateTime.of(2026, 4, 10, 10, 0))
             .build();
 
     when(createBookingUseCase.createBooking(any())).thenReturn(booking);
@@ -117,6 +122,7 @@ class BookingControllerTest {
             .durationMinutes(30)
             .serviceCode("HAIRCUT")
             .status(BookingStatus.PENDING)
+            .createdAt(LocalDateTime.of(2026, 4, 10, 10, 0))
             .build();
 
     when(getBookingUseCase.getBooking(any())).thenReturn(booking);
@@ -143,5 +149,19 @@ class BookingControllerTest {
         .andExpect(jsonPath("$.status").value(404))
         .andExpect(jsonPath("$.detail").value("Booking not found: missing-id"))
         .andExpect(jsonPath("$.correlationId").value("corr-999"));
+  }
+
+  @Test
+  void shouldRejectTimedOutBookings() throws Exception {
+    when(rejectTimedOutBookingsUseCase.rejectTimedOutBookings(any())).thenReturn(2);
+
+    mockMvc
+        .perform(
+            post("/api/v1/internal/bookings/reject-timeouts")
+                .header("X-Correlation-Id", "corr-777"))
+        .andExpect(status().isOk())
+        .andExpect(header().string("X-Correlation-Id", "corr-777"))
+        .andExpect(jsonPath("$.rejectedCount").value(2))
+        .andExpect(jsonPath("$.processedAt").exists());
   }
 }

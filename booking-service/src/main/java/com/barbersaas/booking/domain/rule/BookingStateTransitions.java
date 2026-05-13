@@ -20,6 +20,7 @@ public class BookingStateTransitions {
         .durationMinutes(booking.getDurationMinutes())
         .serviceCode(booking.getServiceCode())
         .status(BookingStatus.CONFIRMED)
+        .createdAt(booking.getCreatedAt())
         .build();
   }
 
@@ -36,6 +37,7 @@ public class BookingStateTransitions {
         .durationMinutes(booking.getDurationMinutes())
         .serviceCode(booking.getServiceCode())
         .status(BookingStatus.REJECTED)
+        .createdAt(booking.getCreatedAt())
         .build();
   }
 

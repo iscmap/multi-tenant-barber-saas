@@ -4,12 +4,16 @@ import com.barbersaas.booking.api.contract.CreateBookingRequest;
 import com.barbersaas.booking.api.contract.CreateBookingResponse;
 import com.barbersaas.booking.api.contract.GetBookingResponse;
 import com.barbersaas.booking.application.command.CreateBookingCommand;
+import com.barbersaas.booking.application.command.timeout.RejectTimedOutBookingsCommand;
 import com.barbersaas.booking.application.mapper.BookingApiMapper;
 import com.barbersaas.booking.application.port.in.CreateBookingUseCase;
 import com.barbersaas.booking.application.port.in.GetBookingUseCase;
+import com.barbersaas.booking.application.port.in.timeout.RejectTimedOutBookingsUseCase;
 import com.barbersaas.booking.application.query.GetBookingQuery;
 import com.barbersaas.booking.domain.model.Booking;
 import jakarta.validation.Valid;
+import java.time.OffsetDateTime;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,23 +24,26 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/bookings")
+@RequestMapping("/api/v1")
 public class BookingController {
 
   private final CreateBookingUseCase createBookingUseCase;
   private final GetBookingUseCase getBookingUseCase;
+  private final RejectTimedOutBookingsUseCase rejectTimedOutBookingsUseCase;
   private final BookingApiMapper bookingApiMapper;
 
   public BookingController(
       CreateBookingUseCase createBookingUseCase,
       GetBookingUseCase getBookingUseCase,
+      RejectTimedOutBookingsUseCase rejectTimedOutBookingsUseCase,
       BookingApiMapper bookingApiMapper) {
     this.createBookingUseCase = createBookingUseCase;
     this.getBookingUseCase = getBookingUseCase;
+    this.rejectTimedOutBookingsUseCase = rejectTimedOutBookingsUseCase;
     this.bookingApiMapper = bookingApiMapper;
   }
 
-  @PostMapping
+  @PostMapping("/bookings")
   @ResponseStatus(HttpStatus.CREATED)
   public CreateBookingResponse createBooking(@Valid @RequestBody CreateBookingRequest request) {
     CreateBookingCommand command = bookingApiMapper.toCommand(request);
@@ -44,10 +51,21 @@ public class BookingController {
     return bookingApiMapper.toCreateBookingResponse(createdBooking);
   }
 
-  @GetMapping("/{bookingId}")
+  @GetMapping("/bookings/{bookingId}")
   public GetBookingResponse getBooking(@PathVariable String bookingId) {
     GetBookingQuery query = GetBookingQuery.builder().bookingId(bookingId).build();
+
     Booking booking = getBookingUseCase.getBooking(query);
     return bookingApiMapper.toGetBookingResponse(booking);
+  }
+
+  @PostMapping("/internal/bookings/reject-timeouts")
+  public Map<String, Object> rejectTimedOutBookings() {
+    RejectTimedOutBookingsCommand command =
+        RejectTimedOutBookingsCommand.builder().now(OffsetDateTime.now()).build();
+
+    int rejectedCount = rejectTimedOutBookingsUseCase.rejectTimedOutBookings(command);
+
+    return Map.of("rejectedCount", rejectedCount, "processedAt", command.getNow().toString());
   }
 }
