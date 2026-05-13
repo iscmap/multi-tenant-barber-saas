@@ -1,19 +1,27 @@
 package com.barbersaas.availability.application.service;
 
 import com.barbersaas.availability.application.port.in.GetBarberAvailabilityUseCase;
+import com.barbersaas.availability.application.port.in.schedule.GetBarberScheduleUseCase;
 import com.barbersaas.availability.application.port.out.LoadBarberAvailabilityPort;
+import com.barbersaas.availability.application.port.out.schedule.LoadBarberSchedulePort;
 import com.barbersaas.availability.domain.model.BarberAvailability;
+import com.barbersaas.availability.domain.model.BarberSchedule;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import org.springframework.stereotype.Service;
 
 @Service
-public class AvailabilityApplicationService implements GetBarberAvailabilityUseCase {
+public class AvailabilityApplicationService
+    implements GetBarberAvailabilityUseCase, GetBarberScheduleUseCase {
 
   private final LoadBarberAvailabilityPort loadBarberAvailabilityPort;
+  private final LoadBarberSchedulePort loadBarberSchedulePort;
 
-  public AvailabilityApplicationService(LoadBarberAvailabilityPort loadBarberAvailabilityPort) {
+  public AvailabilityApplicationService(
+      LoadBarberAvailabilityPort loadBarberAvailabilityPort,
+      LoadBarberSchedulePort loadBarberSchedulePort) {
     this.loadBarberAvailabilityPort = loadBarberAvailabilityPort;
+    this.loadBarberSchedulePort = loadBarberSchedulePort;
   }
 
   @Override
@@ -30,5 +38,15 @@ public class AvailabilityApplicationService implements GetBarberAvailabilityUseC
                         + date
                         + " "
                         + startTime));
+  }
+
+  @Override
+  public BarberSchedule getSchedule(String shopId, String barberId, String date) {
+    return loadBarberSchedulePort
+        .loadByBarberAndDate(shopId, barberId, LocalDate.parse(date))
+        .orElseThrow(
+            () ->
+                new IllegalArgumentException(
+                    "Schedule not found for barber " + barberId + " on " + date));
   }
 }

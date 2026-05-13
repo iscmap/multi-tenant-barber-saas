@@ -7,8 +7,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.barbersaas.availability.application.port.in.GetBarberAvailabilityUseCase;
+import com.barbersaas.availability.application.port.in.schedule.GetBarberScheduleUseCase;
 import com.barbersaas.availability.domain.enums.AvailabilityStatus;
 import com.barbersaas.availability.domain.model.BarberAvailability;
+import com.barbersaas.availability.domain.model.BarberSchedule;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,8 @@ class AvailabilityControllerTest {
   @Autowired private MockMvc mockMvc;
 
   @MockBean private GetBarberAvailabilityUseCase getBarberAvailabilityUseCase;
+
+  @MockBean private GetBarberScheduleUseCase getBarberScheduleUseCase;
 
   @Test
   void shouldReturnAvailabilityResponse() throws Exception {
@@ -46,5 +50,30 @@ class AvailabilityControllerTest {
         .andExpect(jsonPath("$.shopId").value("shop-1"))
         .andExpect(jsonPath("$.barberId").value("barber-1"))
         .andExpect(jsonPath("$.status").value("AVAILABLE"));
+  }
+
+  @Test
+  void shouldReturnScheduleResponse() throws Exception {
+    BarberSchedule schedule =
+        BarberSchedule.builder()
+            .shopId("shop-1")
+            .barberId("barber-1")
+            .date(LocalDate.of(2026, 4, 10))
+            .workStartTime(LocalTime.of(10, 0))
+            .workEndTime(LocalTime.of(18, 0))
+            .slotDurationMinutes(30)
+            .build();
+
+    when(getBarberScheduleUseCase.getSchedule(eq("shop-1"), eq("barber-1"), eq("2026-04-10")))
+        .thenReturn(schedule);
+
+    mockMvc
+        .perform(get("/api/v1/availability/schedule/shop-1/barber-1/2026-04-10"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.shopId").value("shop-1"))
+        .andExpect(jsonPath("$.barberId").value("barber-1"))
+        .andExpect(jsonPath("$.workStartTime").value("10:00:00"))
+        .andExpect(jsonPath("$.workEndTime").value("18:00:00"))
+        .andExpect(jsonPath("$.slotDurationMinutes").value(30));
   }
 }
