@@ -2,17 +2,19 @@ package com.barbersaas.availability.application.service;
 
 import com.barbersaas.availability.application.port.in.GetBarberAvailabilityUseCase;
 import com.barbersaas.availability.application.port.in.schedule.GetBarberScheduleUseCase;
+import com.barbersaas.availability.application.port.in.validation.ValidateSlotUseCase;
 import com.barbersaas.availability.application.port.out.LoadBarberAvailabilityPort;
 import com.barbersaas.availability.application.port.out.schedule.LoadBarberSchedulePort;
 import com.barbersaas.availability.domain.model.BarberAvailability;
 import com.barbersaas.availability.domain.model.BarberSchedule;
+import com.barbersaas.availability.domain.rule.SlotValidationRules;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AvailabilityApplicationService
-    implements GetBarberAvailabilityUseCase, GetBarberScheduleUseCase {
+    implements GetBarberAvailabilityUseCase, GetBarberScheduleUseCase, ValidateSlotUseCase {
 
   private final LoadBarberAvailabilityPort loadBarberAvailabilityPort;
   private final LoadBarberSchedulePort loadBarberSchedulePort;
@@ -48,5 +50,22 @@ public class AvailabilityApplicationService
             () ->
                 new IllegalArgumentException(
                     "Schedule not found for barber " + barberId + " on " + date));
+  }
+
+  @Override
+  public void validateSlot(
+      String shopId, String barberId, String date, String startTime, int durationMinutes) {
+    LocalDate localDate = LocalDate.parse(date);
+    LocalTime localStartTime = LocalTime.parse(startTime);
+
+    BarberSchedule schedule =
+        loadBarberSchedulePort.loadByBarberAndDate(shopId, barberId, localDate).orElse(null);
+
+    BarberAvailability availability =
+        loadBarberAvailabilityPort
+            .loadByBarberAndSlot(shopId, barberId, localDate, localStartTime)
+            .orElse(null);
+
+    SlotValidationRules.validateReservable(schedule, availability, localStartTime, durationMinutes);
   }
 }
