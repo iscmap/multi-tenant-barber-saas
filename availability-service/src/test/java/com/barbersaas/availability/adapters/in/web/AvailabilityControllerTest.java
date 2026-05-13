@@ -1,6 +1,7 @@
 package com.barbersaas.availability.adapters.in.web;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -8,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.barbersaas.availability.application.port.in.GetBarberAvailabilityUseCase;
 import com.barbersaas.availability.application.port.in.schedule.GetBarberScheduleUseCase;
+import com.barbersaas.availability.application.port.in.validation.ValidateSlotUseCase;
 import com.barbersaas.availability.domain.enums.AvailabilityStatus;
 import com.barbersaas.availability.domain.model.BarberAvailability;
 import com.barbersaas.availability.domain.model.BarberSchedule;
@@ -27,6 +29,8 @@ class AvailabilityControllerTest {
   @MockBean private GetBarberAvailabilityUseCase getBarberAvailabilityUseCase;
 
   @MockBean private GetBarberScheduleUseCase getBarberScheduleUseCase;
+
+  @MockBean private ValidateSlotUseCase validateSlotUseCase;
 
   @Test
   void shouldReturnAvailabilityResponse() throws Exception {
@@ -75,5 +79,20 @@ class AvailabilityControllerTest {
         .andExpect(jsonPath("$.workStartTime").value("10:00:00"))
         .andExpect(jsonPath("$.workEndTime").value("18:00:00"))
         .andExpect(jsonPath("$.slotDurationMinutes").value(30));
+  }
+
+  @Test
+  void shouldReturnSlotValidationSuccess() throws Exception {
+    doNothing()
+        .when(validateSlotUseCase)
+        .validateSlot("shop-1", "barber-1", "2026-04-10", "10:00", 30);
+
+    mockMvc
+        .perform(get("/api/v1/availability/validate/shop-1/barber-1/2026-04-10/10:00/30"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.valid").value(true))
+        .andExpect(jsonPath("$.shopId").value("shop-1"))
+        .andExpect(jsonPath("$.barberId").value("barber-1"))
+        .andExpect(jsonPath("$.durationMinutes").value(30));
   }
 }

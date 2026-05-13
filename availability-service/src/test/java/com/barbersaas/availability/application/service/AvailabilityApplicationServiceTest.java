@@ -1,10 +1,12 @@
 package com.barbersaas.availability.application.service;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.barbersaas.availability.adapters.out.persistence.memory.InMemoryBarberAvailabilityRepository;
 import com.barbersaas.availability.domain.enums.AvailabilityStatus;
+import com.barbersaas.availability.domain.exception.SlotValidationException;
 import com.barbersaas.availability.domain.model.BarberAvailability;
 import com.barbersaas.availability.domain.model.BarberSchedule;
 import org.junit.jupiter.api.Test;
@@ -56,5 +58,40 @@ class AvailabilityApplicationServiceTest {
             () -> service.getSchedule("shop-1", "barber-9", "2026-04-10"));
 
     assertEquals("Schedule not found for barber barber-9 on 2026-04-10", exception.getMessage());
+  }
+
+  @Test
+  void shouldValidateReservableSlot() {
+    assertDoesNotThrow(() -> service.validateSlot("shop-1", "barber-1", "2026-04-10", "10:00", 30));
+  }
+
+  @Test
+  void shouldFailWhenDurationDoesNotMatchSchedule() {
+    SlotValidationException exception =
+        assertThrows(
+            SlotValidationException.class,
+            () -> service.validateSlot("shop-1", "barber-1", "2026-04-10", "10:00", 45));
+
+    assertEquals("Requested duration does not match barber slot duration", exception.getMessage());
+  }
+
+  @Test
+  void shouldFailWhenSlotStartsBeforeWorkingHours() {
+    SlotValidationException exception =
+        assertThrows(
+            SlotValidationException.class,
+            () -> service.validateSlot("shop-1", "barber-1", "2026-04-10", "09:30", 30));
+
+    assertEquals("Requested slot starts before barber working hours", exception.getMessage());
+  }
+
+  @Test
+  void shouldFailWhenSlotDoesNotExist() {
+    SlotValidationException exception =
+        assertThrows(
+            SlotValidationException.class,
+            () -> service.validateSlot("shop-1", "barber-1", "2026-04-10", "11:00", 30));
+
+    assertEquals("Requested slot does not exist", exception.getMessage());
   }
 }
