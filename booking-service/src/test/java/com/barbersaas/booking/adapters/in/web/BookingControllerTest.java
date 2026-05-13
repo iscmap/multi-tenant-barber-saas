@@ -73,12 +73,37 @@ class BookingControllerTest {
         .perform(
             post("/api/v1/bookings")
                 .header("X-Correlation-Id", "corr-123")
+                .header("Idempotency-Key", "idem-header-1")
                 .contentType("application/json")
                 .content(requestBody))
         .andExpect(status().isCreated())
         .andExpect(header().string("X-Correlation-Id", "corr-123"))
         .andExpect(jsonPath("$.bookingId").value("generated-booking-id"))
         .andExpect(jsonPath("$.status").value("PENDING"));
+  }
+
+  @Test
+  void shouldFailWhenIdempotencyHeaderIsMissing() throws Exception {
+    String requestBody =
+        """
+                {
+                  "shopId": "shop-1",
+                  "barberId": "barber-1",
+                  "customerId": "customer-1",
+                  "date": "2026-04-10",
+                  "startTime": "10:00:00",
+                  "durationMinutes": 30,
+                  "serviceCode": "HAIRCUT"
+                }
+                """;
+
+    mockMvc
+        .perform(
+            post("/api/v1/bookings")
+                .header("X-Correlation-Id", "corr-124")
+                .contentType("application/json")
+                .content(requestBody))
+        .andExpect(status().isBadRequest());
   }
 
   @Test
@@ -100,6 +125,7 @@ class BookingControllerTest {
         .perform(
             post("/api/v1/bookings")
                 .header("X-Correlation-Id", "corr-456")
+                .header("Idempotency-Key", "idem-header-2")
                 .contentType("application/json")
                 .content(requestBody))
         .andExpect(status().isBadRequest())

@@ -4,6 +4,7 @@ import com.barbersaas.booking.api.contract.CreateBookingRequest;
 import com.barbersaas.booking.api.contract.CreateBookingResponse;
 import com.barbersaas.booking.api.contract.GetBookingResponse;
 import com.barbersaas.booking.application.command.CreateBookingCommand;
+import com.barbersaas.booking.application.command.idempotency.CreateBookingWithIdempotencyCommand;
 import com.barbersaas.booking.application.command.timeout.RejectTimedOutBookingsCommand;
 import com.barbersaas.booking.application.mapper.BookingApiMapper;
 import com.barbersaas.booking.application.port.in.CreateBookingUseCase;
@@ -15,13 +16,7 @@ import jakarta.validation.Valid;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -45,8 +40,17 @@ public class BookingController {
 
   @PostMapping("/bookings")
   @ResponseStatus(HttpStatus.CREATED)
-  public CreateBookingResponse createBooking(@Valid @RequestBody CreateBookingRequest request) {
-    CreateBookingCommand command = bookingApiMapper.toCommand(request);
+  public CreateBookingResponse createBooking(
+      @RequestHeader(value = "Idempotency-Key", required = true) String idempotencyKey,
+      @Valid @RequestBody CreateBookingRequest request) {
+    CreateBookingCommand createBookingCommand = bookingApiMapper.toCommand(request);
+
+    CreateBookingWithIdempotencyCommand command =
+        CreateBookingWithIdempotencyCommand.builder()
+            .idempotencyKey(idempotencyKey)
+            .createBookingCommand(createBookingCommand)
+            .build();
+
     Booking createdBooking = createBookingUseCase.createBooking(command);
     return bookingApiMapper.toCreateBookingResponse(createdBooking);
   }
