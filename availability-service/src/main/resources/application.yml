@@ -4,3 +4,12 @@ spring:
 
 server:
   port: 8082
+
+barbersaas:
+  messaging:
+    booking-events-topic: booking-events
+    booking-created-queue: booking-created-queue
+    availability-events-topic: availability-events
+    availability-decided-queue: availability-decided-queue
+    booking-events-dlq: booking-events-dlq
+    availability-events-dlq: availability-events-dlq

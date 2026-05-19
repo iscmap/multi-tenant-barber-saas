@@ -7,6 +7,9 @@ dependencies {
 	api 'com.fasterxml.jackson.core:jackson-databind'
 	api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 	api 'org.slf4j:slf4j-api'
+	api 'org.springframework.boot:spring-boot-autoconfigure'
+
+	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
 	testImplementation 'org.junit.jupiter:junit-jupiter'
 }
