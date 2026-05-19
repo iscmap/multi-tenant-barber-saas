@@ -4,15 +4,19 @@ import com.barbersaas.availability.application.factory.AvailabilityEventFactory;
 import com.barbersaas.availability.application.port.in.event.ConsumeBookingCreatedUseCase;
 import com.barbersaas.availability.application.port.in.validation.ValidateSlotUseCase;
 import com.barbersaas.availability.application.port.out.LoadBarberAvailabilityPort;
+import com.barbersaas.availability.application.port.out.deduplication.LoadProcessedBookingEventPort;
+import com.barbersaas.availability.application.port.out.deduplication.SaveProcessedBookingEventPort;
 import com.barbersaas.availability.application.port.out.event.PublishAvailabilityDecidedEventPort;
 import com.barbersaas.availability.application.port.out.reservation.ReserveBarberAvailabilityPort;
 import com.barbersaas.availability.domain.model.BarberAvailability;
+import com.barbersaas.availability.domain.model.event.ProcessedBookingEvent;
 import com.barbersaas.shared.events.contract.AvailabilityDecidedEvent;
 import com.barbersaas.shared.events.contract.BookingCreatedEvent;
 import com.barbersaas.shared.events.envelope.EventEnvelope;
 import com.barbersaas.shared.events.parser.EventJsonParser;
 import com.barbersaas.shared.events.parser.JacksonEventJsonParser;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +28,8 @@ public class BookingCreatedConsumerApplicationService implements ConsumeBookingC
   private final ReserveBarberAvailabilityPort reserveBarberAvailabilityPort;
   private final PublishAvailabilityDecidedEventPort publishAvailabilityDecidedEventPort;
   private final AvailabilityEventFactory availabilityEventFactory;
+  private final LoadProcessedBookingEventPort loadProcessedBookingEventPort;
+  private final SaveProcessedBookingEventPort saveProcessedBookingEventPort;
   private final EventJsonParser eventJsonParser;
 
   public BookingCreatedConsumerApplicationService(
@@ -31,18 +37,31 @@ public class BookingCreatedConsumerApplicationService implements ConsumeBookingC
       LoadBarberAvailabilityPort loadBarberAvailabilityPort,
       ReserveBarberAvailabilityPort reserveBarberAvailabilityPort,
       PublishAvailabilityDecidedEventPort publishAvailabilityDecidedEventPort,
-      AvailabilityEventFactory availabilityEventFactory) {
+      AvailabilityEventFactory availabilityEventFactory,
+      LoadProcessedBookingEventPort loadProcessedBookingEventPort,
+      SaveProcessedBookingEventPort saveProcessedBookingEventPort) {
     this.validateSlotUseCase = validateSlotUseCase;
     this.loadBarberAvailabilityPort = loadBarberAvailabilityPort;
     this.reserveBarberAvailabilityPort = reserveBarberAvailabilityPort;
     this.publishAvailabilityDecidedEventPort = publishAvailabilityDecidedEventPort;
     this.availabilityEventFactory = availabilityEventFactory;
+    this.loadProcessedBookingEventPort = loadProcessedBookingEventPort;
+    this.saveProcessedBookingEventPort = saveProcessedBookingEventPort;
     this.eventJsonParser = new JacksonEventJsonParser();
   }
 
   @Override
   public void consume(String payload) {
     BookingCreatedEvent event = eventJsonParser.parse(payload, BookingCreatedEvent.class);
+
+    boolean alreadyProcessed =
+        loadProcessedBookingEventPort
+            .loadByBookingIdAndEventType(event.getBookingId(), event.getEventType())
+            .isPresent();
+
+    if (alreadyProcessed) {
+      return;
+    }
 
     try {
       validateSlotUseCase.validateSlot(
@@ -68,6 +87,15 @@ public class BookingCreatedConsumerApplicationService implements ConsumeBookingC
           availabilityEventFactory.buildConfirmedEvent(event);
 
       publishAvailabilityDecidedEventPort.publish(confirmedEvent);
+
+      ProcessedBookingEvent processedBookingEvent =
+          ProcessedBookingEvent.builder()
+              .bookingId(event.getBookingId())
+              .eventType(event.getEventType())
+              .processedAt(LocalDateTime.now())
+              .build();
+
+      saveProcessedBookingEventPort.save(processedBookingEvent);
     } catch (RuntimeException exception) {
       EventEnvelope<AvailabilityDecidedEvent> rejectedEvent =
           availabilityEventFactory.buildRejectedEvent(event, exception.getMessage());
