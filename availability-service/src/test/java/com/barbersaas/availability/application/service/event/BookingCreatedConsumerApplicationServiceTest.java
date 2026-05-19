@@ -2,8 +2,13 @@ package com.barbersaas.availability.application.service.event;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.barbersaas.availability.adapters.out.persistence.memory.InMemoryBarberAvailabilityRepository;
+import com.barbersaas.availability.application.factory.AvailabilityEventFactory;
+import com.barbersaas.availability.application.port.out.event.PublishAvailabilityDecidedEventPort;
 import com.barbersaas.availability.application.service.AvailabilityApplicationService;
 import com.barbersaas.availability.domain.enums.AvailabilityStatus;
 import com.barbersaas.availability.domain.exception.SlotValidationException;
@@ -18,11 +23,19 @@ class BookingCreatedConsumerApplicationServiceTest {
       new InMemoryBarberAvailabilityRepository();
   private final AvailabilityApplicationService validateSlotUseCase =
       new AvailabilityApplicationService(repository, repository);
+  private final PublishAvailabilityDecidedEventPort publishAvailabilityDecidedEventPort =
+      mock(PublishAvailabilityDecidedEventPort.class);
+  private final AvailabilityEventFactory availabilityEventFactory = new AvailabilityEventFactory();
   private final BookingCreatedConsumerApplicationService service =
-      new BookingCreatedConsumerApplicationService(validateSlotUseCase, repository, repository);
+      new BookingCreatedConsumerApplicationService(
+          validateSlotUseCase,
+          repository,
+          repository,
+          publishAvailabilityDecidedEventPort,
+          availabilityEventFactory);
 
   @Test
-  void shouldParseBookingCreatedValidateAndReserveSlot() {
+  void shouldParseBookingCreatedValidateReserveAndPublishConfirmed() {
     String payload =
         """
                 {
@@ -51,10 +64,18 @@ class BookingCreatedConsumerApplicationServiceTest {
             .orElseThrow();
 
     assertEquals(AvailabilityStatus.RESERVED, reservedSlot.getStatus());
+
+    verify(publishAvailabilityDecidedEventPort)
+        .publish(
+            argThat(
+                event ->
+                    event.getPayload().getDecision().equals("CONFIRMED")
+                        && event.getPayload().getReason().equals("SLOT_RESERVED")
+                        && event.getPayload().getBookingId().equals("booking-1")));
   }
 
   @Test
-  void shouldFailWhenConsumingSameSlotTwice() {
+  void shouldPublishRejectedWhenConsumingSameSlotTwice() {
     String payload =
         """
                 {
@@ -80,5 +101,13 @@ class BookingCreatedConsumerApplicationServiceTest {
         assertThrows(SlotValidationException.class, () -> service.consume(payload));
 
     assertEquals("Requested slot is not available", exception.getMessage());
+
+    verify(publishAvailabilityDecidedEventPort)
+        .publish(
+            argThat(
+                event ->
+                    event.getPayload().getDecision().equals("REJECTED")
+                        && event.getPayload().getReason().equals("Requested slot is not available")
+                        && event.getPayload().getBookingId().equals("booking-1")));
   }
 }
