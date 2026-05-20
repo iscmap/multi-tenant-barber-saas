@@ -1,18 +1,25 @@
 package com.barbersaas.availability.adapters.in.messaging.sqs;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+import com.barbersaas.availability.application.classifier.MessageFailureClassifier;
 import com.barbersaas.availability.application.port.in.event.ConsumeBookingCreatedUseCase;
+import com.barbersaas.availability.domain.exception.SlotValidationException;
+import com.barbersaas.availability.domain.exception.messaging.RetryableMessageException;
 import org.junit.jupiter.api.Test;
 
 class BookingCreatedSqsListenerTest {
 
   private final ConsumeBookingCreatedUseCase consumeBookingCreatedUseCase =
       mock(ConsumeBookingCreatedUseCase.class);
+  private final MessageFailureClassifier messageFailureClassifier = new MessageFailureClassifier();
 
   private final BookingCreatedSqsListener listener =
-      new BookingCreatedSqsListener(consumeBookingCreatedUseCase);
+      new BookingCreatedSqsListener(consumeBookingCreatedUseCase, messageFailureClassifier);
 
   @Test
   void shouldDelegatePayloadToUseCase() {
@@ -38,5 +45,27 @@ class BookingCreatedSqsListenerTest {
     listener.listen(payload);
 
     verify(consumeBookingCreatedUseCase).consume(payload);
+  }
+
+  @Test
+  void shouldSwallowNonRetryableFailure() {
+    String payload = "{\"payload\":\"value\"}";
+
+    doThrow(new SlotValidationException("Requested slot is not available"))
+        .when(consumeBookingCreatedUseCase)
+        .consume(payload);
+
+    assertDoesNotThrow(() -> listener.listen(payload));
+  }
+
+  @Test
+  void shouldRethrowRetryableFailure() {
+    String payload = "{\"payload\":\"value\"}";
+
+    doThrow(new RuntimeException("Temporary failure"))
+        .when(consumeBookingCreatedUseCase)
+        .consume(payload);
+
+    assertThrows(RetryableMessageException.class, () -> listener.listen(payload));
   }
 }
