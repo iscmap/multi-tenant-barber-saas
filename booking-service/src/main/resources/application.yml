@@ -8,8 +8,7 @@ spring:
       credentials:
         access-key: test
         secret-key: test
-      sns:
-        endpoint: http://localhost:4566
+      endpoint: http://localhost:4566
 
 server:
   port: 8081
@@ -17,7 +16,6 @@ server:
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{36} correlationId=%X{correlationId} - %msg%n"
-
 
 barbersaas:
   messaging:
