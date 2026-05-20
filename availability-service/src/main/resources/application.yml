@@ -1,6 +1,14 @@
 spring:
   application:
     name: availability-service
+  cloud:
+    aws:
+      region:
+        static: us-east-1
+      credentials:
+        access-key: test
+        secret-key: test
+      endpoint: http://localhost:4566
 
 server:
   port: 8082

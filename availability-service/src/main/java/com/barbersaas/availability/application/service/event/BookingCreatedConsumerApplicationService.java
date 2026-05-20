@@ -52,7 +52,10 @@ public class BookingCreatedConsumerApplicationService implements ConsumeBookingC
 
   @Override
   public void consume(String payload) {
-    BookingCreatedEvent event = eventJsonParser.parse(payload, BookingCreatedEvent.class);
+    EventEnvelope<BookingCreatedEvent> envelope =
+        eventJsonParser.parseEventEnvelope(payload, BookingCreatedEvent.class);
+
+    BookingCreatedEvent event = envelope.getPayload();
 
     boolean alreadyProcessed =
         loadProcessedBookingEventPort
