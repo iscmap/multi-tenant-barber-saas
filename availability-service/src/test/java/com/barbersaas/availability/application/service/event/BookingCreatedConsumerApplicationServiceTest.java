@@ -47,15 +47,23 @@ class BookingCreatedConsumerApplicationServiceTest {
                   "eventType": "BookingCreated",
                   "occurredAt": "2026-04-10T10:00:00Z",
                   "correlationId": "corr-1",
-                  "bookingId": "booking-1",
-                  "shopId": "shop-1",
-                  "barberId": "barber-1",
-                  "customerId": "customer-1",
-                  "date": "2026-04-10",
-                  "startTime": "10:00",
-                  "durationMinutes": 30,
-                  "serviceCode": "HAIRCUT",
-                  "status": "PENDING"
+                  "source": "booking-service",
+                  "tenantId": "shop-1",
+                  "payload": {
+                    "eventId": "evt-1",
+                    "eventType": "BookingCreated",
+                    "occurredAt": "2026-04-10T10:00:00Z",
+                    "correlationId": "corr-1",
+                    "bookingId": "booking-1",
+                    "shopId": "shop-1",
+                    "barberId": "barber-1",
+                    "customerId": "customer-1",
+                    "date": "2026-04-10",
+                    "startTime": "10:00",
+                    "durationMinutes": 30,
+                    "serviceCode": "HAIRCUT",
+                    "status": "PENDING"
+                  }
                 }
                 """;
 
@@ -87,15 +95,23 @@ class BookingCreatedConsumerApplicationServiceTest {
                   "eventType": "BookingCreated",
                   "occurredAt": "2026-04-10T10:00:00Z",
                   "correlationId": "corr-1",
-                  "bookingId": "booking-1",
-                  "shopId": "shop-1",
-                  "barberId": "barber-1",
-                  "customerId": "customer-1",
-                  "date": "2026-04-10",
-                  "startTime": "10:00",
-                  "durationMinutes": 30,
-                  "serviceCode": "HAIRCUT",
-                  "status": "PENDING"
+                  "source": "booking-service",
+                  "tenantId": "shop-1",
+                  "payload": {
+                    "eventId": "evt-1",
+                    "eventType": "BookingCreated",
+                    "occurredAt": "2026-04-10T10:00:00Z",
+                    "correlationId": "corr-1",
+                    "bookingId": "booking-1",
+                    "shopId": "shop-1",
+                    "barberId": "barber-1",
+                    "customerId": "customer-1",
+                    "date": "2026-04-10",
+                    "startTime": "10:00",
+                    "durationMinutes": 30,
+                    "serviceCode": "HAIRCUT",
+                    "status": "PENDING"
+                  }
                 }
                 """;
 
