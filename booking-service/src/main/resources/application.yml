@@ -25,3 +25,7 @@ barbersaas:
     availability-decided-queue: availability-decided-queue
     booking-events-dlq: booking-events-dlq
     availability-events-dlq: availability-events-dlq
+    booking-created-kafka-topic: booking-created-kafka
+    availability-kafka-consumer-group: availability-booking-created-group
+    kafka-bootstrap-servers: localhost:9092
+    kafka-listener-auto-startup: true

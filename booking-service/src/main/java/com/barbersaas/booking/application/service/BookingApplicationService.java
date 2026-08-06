@@ -1,5 +1,6 @@
 package com.barbersaas.booking.application.service;
 
+import com.barbersaas.booking.adapters.out.event.kafka.KafkaBookingCreatedEventPublisher;
 import com.barbersaas.booking.application.command.CreateBookingCommand;
 import com.barbersaas.booking.application.command.idempotency.CreateBookingWithIdempotencyCommand;
 import com.barbersaas.booking.application.factory.BookingEventFactory;
@@ -19,6 +20,7 @@ import com.barbersaas.shared.events.contract.BookingCreatedEvent;
 import com.barbersaas.shared.events.envelope.EventEnvelope;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -30,6 +32,8 @@ public class BookingApplicationService implements CreateBookingUseCase, GetBooki
   private final BookingEventFactory bookingEventFactory;
   private final LoadIdempotencyRecordPort loadIdempotencyRecordPort;
   private final SaveIdempotencyRecordPort saveIdempotencyRecordPort;
+  private final ObjectProvider<KafkaBookingCreatedEventPublisher>
+      kafkaBookingCreatedEventPublisherProvider;
 
   public BookingApplicationService(
       SaveBookingPort saveBookingPort,
@@ -37,13 +41,15 @@ public class BookingApplicationService implements CreateBookingUseCase, GetBooki
       PublishBookingCreatedEventPort publishBookingCreatedEventPort,
       BookingEventFactory bookingEventFactory,
       LoadIdempotencyRecordPort loadIdempotencyRecordPort,
-      SaveIdempotencyRecordPort saveIdempotencyRecordPort) {
+      SaveIdempotencyRecordPort saveIdempotencyRecordPort,
+      ObjectProvider<KafkaBookingCreatedEventPublisher> kafkaBookingCreatedEventPublisherProvider) {
     this.saveBookingPort = saveBookingPort;
     this.loadBookingPort = loadBookingPort;
     this.publishBookingCreatedEventPort = publishBookingCreatedEventPort;
     this.bookingEventFactory = bookingEventFactory;
     this.loadIdempotencyRecordPort = loadIdempotencyRecordPort;
     this.saveIdempotencyRecordPort = saveIdempotencyRecordPort;
+    this.kafkaBookingCreatedEventPublisherProvider = kafkaBookingCreatedEventPublisherProvider;
   }
 
   @Override
@@ -93,6 +99,12 @@ public class BookingApplicationService implements CreateBookingUseCase, GetBooki
         bookingEventFactory.buildBookingCreatedEvent(savedBooking);
 
     publishBookingCreatedEventPort.publish(eventEnvelope);
+
+    KafkaBookingCreatedEventPublisher kafkaPublisher =
+        kafkaBookingCreatedEventPublisherProvider.getIfAvailable();
+    if (kafkaPublisher != null) {
+      kafkaPublisher.publish(eventEnvelope);
+    }
 
     return savedBooking;
   }

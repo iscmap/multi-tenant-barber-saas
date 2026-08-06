@@ -8,7 +8,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.barbersaas.booking.adapters.out.event.kafka.KafkaBookingCreatedEventPublisher;
 import com.barbersaas.booking.adapters.out.idempotency.memory.InMemoryIdempotencyRepository;
 import com.barbersaas.booking.adapters.out.persistence.memory.InMemoryBookingRepository;
 import com.barbersaas.booking.application.command.CreateBookingCommand;
@@ -22,6 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 class BookingApplicationServiceTest {
 
@@ -31,6 +34,13 @@ class BookingApplicationServiceTest {
   private final PublishBookingCreatedEventPort publishBookingCreatedEventPort =
       mock(PublishBookingCreatedEventPort.class);
   private final BookingEventFactory bookingEventFactory = new BookingEventFactory();
+  private final KafkaBookingCreatedEventPublisher kafkaBookingCreatedEventPublisher =
+      mock(KafkaBookingCreatedEventPublisher.class);
+
+  @SuppressWarnings("unchecked")
+  private final ObjectProvider<KafkaBookingCreatedEventPublisher> kafkaPublisherProvider =
+      mock(ObjectProvider.class);
+
   private final BookingApplicationService service =
       new BookingApplicationService(
           repository,
@@ -38,10 +48,13 @@ class BookingApplicationServiceTest {
           publishBookingCreatedEventPort,
           bookingEventFactory,
           idempotencyRepository,
-          idempotencyRepository);
+          idempotencyRepository,
+          kafkaPublisherProvider);
 
   @Test
   void shouldCreateBookingFromCommand() {
+    when(kafkaPublisherProvider.getIfAvailable()).thenReturn(kafkaBookingCreatedEventPublisher);
+
     CreateBookingCommand createBookingCommand =
         CreateBookingCommand.builder()
             .shopId("shop-1")
@@ -66,10 +79,13 @@ class BookingApplicationServiceTest {
     assertEquals(BookingStatus.PENDING, booking.getStatus());
     assertNotNull(booking.getCreatedAt());
     verify(publishBookingCreatedEventPort).publish(any());
+    verify(kafkaBookingCreatedEventPublisher).publish(any());
   }
 
   @Test
   void shouldReturnSameBookingForSameIdempotencyKey() {
+    when(kafkaPublisherProvider.getIfAvailable()).thenReturn(kafkaBookingCreatedEventPublisher);
+
     CreateBookingCommand createBookingCommand =
         CreateBookingCommand.builder()
             .shopId("shop-1")
@@ -92,10 +108,13 @@ class BookingApplicationServiceTest {
 
     assertEquals(firstBooking.getBookingId(), secondBooking.getBookingId());
     verify(publishBookingCreatedEventPort, times(1)).publish(any());
+    verify(kafkaBookingCreatedEventPublisher, times(1)).publish(any());
   }
 
   @Test
   void shouldReturnSavedBookingById() {
+    when(kafkaPublisherProvider.getIfAvailable()).thenReturn(kafkaBookingCreatedEventPublisher);
+
     CreateBookingCommand createBookingCommand =
         CreateBookingCommand.builder()
             .shopId("shop-1")
