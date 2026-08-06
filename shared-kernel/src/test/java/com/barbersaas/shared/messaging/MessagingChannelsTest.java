@@ -16,5 +16,8 @@ class MessagingChannelsTest {
     assertEquals("availability-events-dlq", MessagingChannels.AVAILABILITY_EVENTS_DLQ);
     assertEquals("BookingCreated", MessagingChannels.BOOKING_CREATED_EVENT_TYPE);
     assertEquals("AvailabilityDecided", MessagingChannels.AVAILABILITY_DECIDED_EVENT_TYPE);
+    assertEquals("booking-created-kafka", MessagingChannels.BOOKING_CREATED_KAFKA_TOPIC);
+    assertEquals(
+        "availability-booking-created-group", MessagingChannels.AVAILABILITY_KAFKA_CONSUMER_GROUP);
   }
 }

@@ -11,5 +11,9 @@ public final class MessagingChannels {
   public static final String BOOKING_CREATED_EVENT_TYPE = "BookingCreated";
   public static final String AVAILABILITY_DECIDED_EVENT_TYPE = "AvailabilityDecided";
 
+  public static final String BOOKING_CREATED_KAFKA_TOPIC = "booking-created-kafka";
+  public static final String AVAILABILITY_KAFKA_CONSUMER_GROUP =
+      "availability-booking-created-group";
+
   private MessagingChannels() {}
 }

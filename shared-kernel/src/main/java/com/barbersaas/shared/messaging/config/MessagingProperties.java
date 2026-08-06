@@ -15,4 +15,9 @@ public class MessagingProperties {
   private String availabilityDecidedQueue;
   private String bookingEventsDlq;
   private String availabilityEventsDlq;
+
+  private String bookingCreatedKafkaTopic;
+  private String availabilityKafkaConsumerGroup;
+  private String kafkaBootstrapServers;
+  private boolean kafkaListenerAutoStartup = true;
 }
