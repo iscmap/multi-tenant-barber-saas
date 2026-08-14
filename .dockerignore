@@ -1,0 +1,13 @@
+.git
+.gitignore
+.idea
+.gradle
+
+**/build
+
+/out
+
+*.iml
+*.log
+
+infra/docker/localstack/cache
