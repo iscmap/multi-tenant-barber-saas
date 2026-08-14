@@ -8,6 +8,7 @@ import com.barbersaas.availability.application.port.out.deduplication.LoadProces
 import com.barbersaas.availability.application.port.out.deduplication.SaveProcessedBookingEventPort;
 import com.barbersaas.availability.application.port.out.event.PublishAvailabilityDecidedEventPort;
 import com.barbersaas.availability.application.port.out.reservation.ReserveBarberAvailabilityPort;
+import com.barbersaas.availability.domain.exception.SlotValidationException;
 import com.barbersaas.availability.domain.model.BarberAvailability;
 import com.barbersaas.availability.domain.model.event.ProcessedBookingEvent;
 import com.barbersaas.shared.events.contract.AvailabilityDecidedEvent;
@@ -91,20 +92,26 @@ public class BookingCreatedConsumerApplicationService implements ConsumeBookingC
 
       publishAvailabilityDecidedEventPort.publish(confirmedEvent);
 
-      ProcessedBookingEvent processedBookingEvent =
-          ProcessedBookingEvent.builder()
-              .bookingId(event.getBookingId())
-              .eventType(event.getEventType())
-              .processedAt(LocalDateTime.now())
-              .build();
+      saveProcessedEvent(event);
 
-      saveProcessedBookingEventPort.save(processedBookingEvent);
-    } catch (RuntimeException exception) {
+    } catch (SlotValidationException exception) {
       EventEnvelope<AvailabilityDecidedEvent> rejectedEvent =
           availabilityEventFactory.buildRejectedEvent(event, exception.getMessage());
 
       publishAvailabilityDecidedEventPort.publish(rejectedEvent);
-      throw exception;
+
+      saveProcessedEvent(event);
     }
+  }
+
+  private void saveProcessedEvent(BookingCreatedEvent event) {
+    ProcessedBookingEvent processedBookingEvent =
+        ProcessedBookingEvent.builder()
+            .bookingId(event.getBookingId())
+            .eventType(event.getEventType())
+            .processedAt(LocalDateTime.now())
+            .build();
+
+    saveProcessedBookingEventPort.save(processedBookingEvent);
   }
 }
