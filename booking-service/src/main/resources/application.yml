@@ -57,3 +57,16 @@ barbersaas:
     availability-kafka-consumer-group: ${AVAILABILITY_KAFKA_CONSUMER_GROUP:availability-booking-created-group}
     kafka-bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     kafka-listener-auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+        add-additional-paths: true
