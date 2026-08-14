@@ -11,60 +11,134 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.barbersaas.booking.adapters.out.event.kafka.KafkaBookingCreatedEventPublisher;
-import com.barbersaas.booking.adapters.out.idempotency.memory.InMemoryIdempotencyRepository;
-import com.barbersaas.booking.adapters.out.persistence.memory.InMemoryBookingRepository;
 import com.barbersaas.booking.application.command.CreateBookingCommand;
 import com.barbersaas.booking.application.command.idempotency.CreateBookingWithIdempotencyCommand;
 import com.barbersaas.booking.application.factory.BookingEventFactory;
+import com.barbersaas.booking.application.port.out.LoadBookingPort;
+import com.barbersaas.booking.application.port.out.SaveBookingPort;
 import com.barbersaas.booking.application.port.out.event.PublishBookingCreatedEventPort;
+import com.barbersaas.booking.application.port.out.idempotency.LoadIdempotencyRecordPort;
+import com.barbersaas.booking.application.port.out.idempotency.SaveIdempotencyRecordPort;
 import com.barbersaas.booking.application.query.GetBookingQuery;
 import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
+import com.barbersaas.booking.domain.model.idempotency.IdempotencyRecord;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 
 class BookingApplicationServiceTest {
 
-  private final InMemoryBookingRepository repository = new InMemoryBookingRepository();
-  private final InMemoryIdempotencyRepository idempotencyRepository =
-      new InMemoryIdempotencyRepository();
-  private final PublishBookingCreatedEventPort publishBookingCreatedEventPort =
-      mock(PublishBookingCreatedEventPort.class);
-  private final BookingEventFactory bookingEventFactory = new BookingEventFactory();
-  private final KafkaBookingCreatedEventPublisher kafkaBookingCreatedEventPublisher =
-      mock(KafkaBookingCreatedEventPublisher.class);
+  private SaveBookingPort saveBookingPort;
+  private LoadBookingPort loadBookingPort;
+  private LoadIdempotencyRecordPort loadIdempotencyRecordPort;
+  private SaveIdempotencyRecordPort saveIdempotencyRecordPort;
 
+  private PublishBookingCreatedEventPort publishBookingCreatedEventPort;
+  private KafkaBookingCreatedEventPublisher kafkaBookingCreatedEventPublisher;
+
+  private ObjectProvider<KafkaBookingCreatedEventPublisher> kafkaPublisherProvider;
+
+  private BookingApplicationService service;
+
+  private Map<String, Booking> bookingStorage;
+  private Map<String, IdempotencyRecord> idempotencyStorage;
+
+  @BeforeEach
   @SuppressWarnings("unchecked")
-  private final ObjectProvider<KafkaBookingCreatedEventPublisher> kafkaPublisherProvider =
-      mock(ObjectProvider.class);
+  void setUp() {
 
-  private final BookingApplicationService service =
-      new BookingApplicationService(
-          repository,
-          repository,
-          publishBookingCreatedEventPort,
-          bookingEventFactory,
-          idempotencyRepository,
-          idempotencyRepository,
-          kafkaPublisherProvider);
+    saveBookingPort = mock(SaveBookingPort.class);
+    loadBookingPort = mock(LoadBookingPort.class);
+
+    loadIdempotencyRecordPort = mock(LoadIdempotencyRecordPort.class);
+
+    saveIdempotencyRecordPort = mock(SaveIdempotencyRecordPort.class);
+
+    publishBookingCreatedEventPort = mock(PublishBookingCreatedEventPort.class);
+
+    kafkaBookingCreatedEventPublisher = mock(KafkaBookingCreatedEventPublisher.class);
+
+    kafkaPublisherProvider = mock(ObjectProvider.class);
+
+    bookingStorage = new HashMap<>();
+    idempotencyStorage = new HashMap<>();
+
+    when(kafkaPublisherProvider.getIfAvailable()).thenReturn(kafkaBookingCreatedEventPublisher);
+
+    when(saveBookingPort.save(any(Booking.class)))
+        .thenAnswer(
+            invocation -> {
+              Booking booking = invocation.getArgument(0);
+
+              String bookingId = booking.getBookingId();
+
+              if (bookingId == null || bookingId.isBlank()) {
+                bookingId = UUID.randomUUID().toString();
+              }
+
+              LocalDateTime createdAt =
+                  booking.getCreatedAt() != null ? booking.getCreatedAt() : LocalDateTime.now();
+
+              Booking savedBooking =
+                  Booking.builder()
+                      .bookingId(bookingId)
+                      .shopId(booking.getShopId())
+                      .barberId(booking.getBarberId())
+                      .customerId(booking.getCustomerId())
+                      .date(booking.getDate())
+                      .startTime(booking.getStartTime())
+                      .durationMinutes(booking.getDurationMinutes())
+                      .serviceCode(booking.getServiceCode())
+                      .status(booking.getStatus())
+                      .createdAt(createdAt)
+                      .build();
+
+              bookingStorage.put(savedBooking.getBookingId(), savedBooking);
+
+              return savedBooking;
+            });
+
+    when(loadBookingPort.loadById(any(String.class)))
+        .thenAnswer(
+            invocation -> Optional.ofNullable(bookingStorage.get(invocation.getArgument(0))));
+
+    when(loadIdempotencyRecordPort.loadByKey(any(String.class)))
+        .thenAnswer(
+            invocation -> Optional.ofNullable(idempotencyStorage.get(invocation.getArgument(0))));
+
+    when(saveIdempotencyRecordPort.save(any(IdempotencyRecord.class)))
+        .thenAnswer(
+            invocation -> {
+              IdempotencyRecord record = invocation.getArgument(0);
+
+              idempotencyStorage.put(record.getIdempotencyKey(), record);
+
+              return record;
+            });
+
+    service =
+        new BookingApplicationService(
+            saveBookingPort,
+            loadBookingPort,
+            publishBookingCreatedEventPort,
+            new BookingEventFactory(),
+            loadIdempotencyRecordPort,
+            saveIdempotencyRecordPort,
+            kafkaPublisherProvider);
+  }
 
   @Test
   void shouldCreateBookingFromCommand() {
-    when(kafkaPublisherProvider.getIfAvailable()).thenReturn(kafkaBookingCreatedEventPublisher);
 
-    CreateBookingCommand createBookingCommand =
-        CreateBookingCommand.builder()
-            .shopId("shop-1")
-            .barberId("barber-1")
-            .customerId("customer-1")
-            .date(LocalDate.of(2026, 4, 10))
-            .startTime(LocalTime.of(10, 0))
-            .durationMinutes(30)
-            .serviceCode("HAIRCUT")
-            .build();
+    CreateBookingCommand createBookingCommand = createBookingCommand();
 
     CreateBookingWithIdempotencyCommand command =
         CreateBookingWithIdempotencyCommand.builder()
@@ -75,61 +149,45 @@ class BookingApplicationServiceTest {
     Booking booking = service.createBooking(command);
 
     assertTrue(booking.getBookingId() != null && !booking.getBookingId().isBlank());
+
     assertEquals("shop-1", booking.getShopId());
+
     assertEquals(BookingStatus.PENDING, booking.getStatus());
+
     assertNotNull(booking.getCreatedAt());
+
     verify(publishBookingCreatedEventPort).publish(any());
+
     verify(kafkaBookingCreatedEventPublisher).publish(any());
   }
 
   @Test
   void shouldReturnSameBookingForSameIdempotencyKey() {
-    when(kafkaPublisherProvider.getIfAvailable()).thenReturn(kafkaBookingCreatedEventPublisher);
-
-    CreateBookingCommand createBookingCommand =
-        CreateBookingCommand.builder()
-            .shopId("shop-1")
-            .barberId("barber-1")
-            .customerId("customer-1")
-            .date(LocalDate.of(2026, 4, 10))
-            .startTime(LocalTime.of(10, 0))
-            .durationMinutes(30)
-            .serviceCode("HAIRCUT")
-            .build();
 
     CreateBookingWithIdempotencyCommand command =
         CreateBookingWithIdempotencyCommand.builder()
             .idempotencyKey("idem-same")
-            .createBookingCommand(createBookingCommand)
+            .createBookingCommand(createBookingCommand())
             .build();
 
     Booking firstBooking = service.createBooking(command);
+
     Booking secondBooking = service.createBooking(command);
 
     assertEquals(firstBooking.getBookingId(), secondBooking.getBookingId());
+
     verify(publishBookingCreatedEventPort, times(1)).publish(any());
+
     verify(kafkaBookingCreatedEventPublisher, times(1)).publish(any());
   }
 
   @Test
   void shouldReturnSavedBookingById() {
-    when(kafkaPublisherProvider.getIfAvailable()).thenReturn(kafkaBookingCreatedEventPublisher);
-
-    CreateBookingCommand createBookingCommand =
-        CreateBookingCommand.builder()
-            .shopId("shop-1")
-            .barberId("barber-1")
-            .customerId("customer-1")
-            .date(LocalDate.of(2026, 4, 10))
-            .startTime(LocalTime.of(10, 0))
-            .durationMinutes(30)
-            .serviceCode("HAIRCUT")
-            .build();
 
     CreateBookingWithIdempotencyCommand command =
         CreateBookingWithIdempotencyCommand.builder()
             .idempotencyKey("idem-2")
-            .createBookingCommand(createBookingCommand)
+            .createBookingCommand(createBookingCommand())
             .build();
 
     Booking createdBooking = service.createBooking(command);
@@ -140,13 +198,17 @@ class BookingApplicationServiceTest {
     Booking loadedBooking = service.getBooking(query);
 
     assertEquals(createdBooking.getBookingId(), loadedBooking.getBookingId());
+
     assertEquals("shop-1", loadedBooking.getShopId());
+
     assertEquals(BookingStatus.PENDING, loadedBooking.getStatus());
+
     assertNotNull(loadedBooking.getCreatedAt());
   }
 
   @Test
   void shouldThrowWhenBookingDoesNotExist() {
+
     GetBookingQuery query = GetBookingQuery.builder().bookingId("missing-id").build();
 
     IllegalArgumentException exception =
@@ -157,19 +219,8 @@ class BookingApplicationServiceTest {
 
   @Test
   void shouldConfirmBookingState() {
-    Booking booking =
-        Booking.builder()
-            .bookingId("booking-10")
-            .shopId("shop-1")
-            .barberId("barber-1")
-            .customerId("customer-1")
-            .date(LocalDate.of(2026, 4, 10))
-            .startTime(LocalTime.of(10, 0))
-            .durationMinutes(30)
-            .serviceCode("HAIRCUT")
-            .status(BookingStatus.PENDING)
-            .createdAt(LocalDateTime.of(2026, 4, 10, 10, 0))
-            .build();
+
+    Booking booking = bookingWithStatus("booking-10", BookingStatus.PENDING);
 
     Booking confirmedBooking = service.confirmBookingState(booking);
 
@@ -178,19 +229,8 @@ class BookingApplicationServiceTest {
 
   @Test
   void shouldRejectBookingState() {
-    Booking booking =
-        Booking.builder()
-            .bookingId("booking-11")
-            .shopId("shop-1")
-            .barberId("barber-1")
-            .customerId("customer-1")
-            .date(LocalDate.of(2026, 4, 10))
-            .startTime(LocalTime.of(10, 0))
-            .durationMinutes(30)
-            .serviceCode("HAIRCUT")
-            .status(BookingStatus.PENDING)
-            .createdAt(LocalDateTime.of(2026, 4, 10, 10, 0))
-            .build();
+
+    Booking booking = bookingWithStatus("booking-11", BookingStatus.PENDING);
 
     Booking rejectedBooking = service.rejectBookingState(booking);
 
@@ -199,24 +239,42 @@ class BookingApplicationServiceTest {
 
   @Test
   void shouldFailInvalidConfirmTransition() {
-    Booking booking =
-        Booking.builder()
-            .bookingId("booking-12")
-            .shopId("shop-1")
-            .barberId("barber-1")
-            .customerId("customer-1")
-            .date(LocalDate.of(2026, 4, 10))
-            .startTime(LocalTime.of(10, 0))
-            .durationMinutes(30)
-            .serviceCode("HAIRCUT")
-            .status(BookingStatus.CONFIRMED)
-            .createdAt(LocalDateTime.of(2026, 4, 10, 10, 0))
-            .build();
+
+    Booking booking = bookingWithStatus("booking-12", BookingStatus.CONFIRMED);
 
     IllegalStateException exception =
         assertThrows(IllegalStateException.class, () -> service.confirmBookingState(booking));
 
     assertEquals(
         "Invalid booking status transition from CONFIRMED to CONFIRMED", exception.getMessage());
+  }
+
+  private CreateBookingCommand createBookingCommand() {
+
+    return CreateBookingCommand.builder()
+        .shopId("shop-1")
+        .barberId("barber-1")
+        .customerId("customer-1")
+        .date(LocalDate.of(2026, 4, 10))
+        .startTime(LocalTime.of(10, 0))
+        .durationMinutes(30)
+        .serviceCode("HAIRCUT")
+        .build();
+  }
+
+  private Booking bookingWithStatus(String bookingId, BookingStatus status) {
+
+    return Booking.builder()
+        .bookingId(bookingId)
+        .shopId("shop-1")
+        .barberId("barber-1")
+        .customerId("customer-1")
+        .date(LocalDate.of(2026, 4, 10))
+        .startTime(LocalTime.of(10, 0))
+        .durationMinutes(30)
+        .serviceCode("HAIRCUT")
+        .status(status)
+        .createdAt(LocalDateTime.of(2026, 4, 10, 10, 0))
+        .build();
   }
 }

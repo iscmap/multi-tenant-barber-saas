@@ -2,15 +2,16 @@ package com.barbersaas.booking.adapters.out.persistence;
 
 import com.barbersaas.booking.application.port.out.LoadBookingPort;
 import com.barbersaas.booking.application.port.out.SaveBookingPort;
+import com.barbersaas.booking.application.port.out.timeout.LoadPendingBookingsPort;
 import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
+import java.util.List;
 import java.util.Optional;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@Primary
-public class JpaBookingRepositoryAdapter implements SaveBookingPort, LoadBookingPort {
+public class JpaBookingRepositoryAdapter
+    implements SaveBookingPort, LoadBookingPort, LoadPendingBookingsPort {
 
   private final SpringDataBookingRepository repository;
 
@@ -28,6 +29,13 @@ public class JpaBookingRepositoryAdapter implements SaveBookingPort, LoadBooking
     BookingJpaEntity entity = toEntity(booking);
     BookingJpaEntity savedEntity = repository.save(entity);
     return toDomain(savedEntity);
+  }
+
+  @Override
+  public List<Booking> loadPendingBookings() {
+    return repository.findByStatus(BookingStatus.PENDING.name()).stream()
+        .map(this::toDomain)
+        .toList();
   }
 
   private BookingJpaEntity toEntity(Booking booking) {

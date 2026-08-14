@@ -3,33 +3,64 @@ package com.barbersaas.availability.application.service;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-import com.barbersaas.availability.adapters.out.persistence.memory.InMemoryBarberAvailabilityRepository;
+import com.barbersaas.availability.application.port.out.LoadBarberAvailabilityPort;
+import com.barbersaas.availability.application.port.out.schedule.LoadBarberSchedulePort;
 import com.barbersaas.availability.domain.enums.AvailabilityStatus;
 import com.barbersaas.availability.domain.exception.SlotValidationException;
 import com.barbersaas.availability.domain.model.BarberAvailability;
 import com.barbersaas.availability.domain.model.BarberSchedule;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class AvailabilityApplicationServiceTest {
 
-  private final InMemoryBarberAvailabilityRepository repository =
-      new InMemoryBarberAvailabilityRepository();
-  private final AvailabilityApplicationService service =
-      new AvailabilityApplicationService(repository, repository);
+  private LoadBarberAvailabilityPort loadBarberAvailabilityPort;
+  private LoadBarberSchedulePort loadBarberSchedulePort;
+
+  private AvailabilityApplicationService service;
+
+  @BeforeEach
+  void setUp() {
+    loadBarberAvailabilityPort = mock(LoadBarberAvailabilityPort.class);
+
+    loadBarberSchedulePort = mock(LoadBarberSchedulePort.class);
+
+    service =
+        new AvailabilityApplicationService(loadBarberAvailabilityPort, loadBarberSchedulePort);
+  }
 
   @Test
   void shouldReturnAvailabilityByBarberAndSlot() {
-    BarberAvailability availability =
+
+    BarberAvailability availability = availableSlot();
+
+    when(loadBarberAvailabilityPort.loadByBarberAndSlot(
+            "shop-1", "barber-1", LocalDate.of(2026, 4, 10), LocalTime.of(10, 0)))
+        .thenReturn(Optional.of(availability));
+
+    BarberAvailability result =
         service.getAvailability("shop-1", "barber-1", "2026-04-10", "10:00");
 
-    assertEquals("shop-1", availability.getShopId());
-    assertEquals("barber-1", availability.getBarberId());
-    assertEquals(AvailabilityStatus.AVAILABLE, availability.getStatus());
+    assertEquals("shop-1", result.getShopId());
+
+    assertEquals("barber-1", result.getBarberId());
+
+    assertEquals(AvailabilityStatus.AVAILABLE, result.getStatus());
   }
 
   @Test
   void shouldThrowWhenAvailabilityDoesNotExist() {
+
+    when(loadBarberAvailabilityPort.loadByBarberAndSlot(
+            "shop-1", "barber-9", LocalDate.of(2026, 4, 10), LocalTime.of(10, 0)))
+        .thenReturn(Optional.empty());
+
     IllegalArgumentException exception =
         assertThrows(
             IllegalArgumentException.class,
@@ -41,17 +72,33 @@ class AvailabilityApplicationServiceTest {
 
   @Test
   void shouldReturnScheduleByBarberAndDate() {
-    BarberSchedule schedule = service.getSchedule("shop-1", "barber-1", "2026-04-10");
 
-    assertEquals("shop-1", schedule.getShopId());
-    assertEquals("barber-1", schedule.getBarberId());
-    assertEquals(30, schedule.getSlotDurationMinutes());
-    assertEquals(java.time.LocalTime.of(10, 0), schedule.getWorkStartTime());
-    assertEquals(java.time.LocalTime.of(18, 0), schedule.getWorkEndTime());
+    BarberSchedule schedule = barberSchedule();
+
+    when(loadBarberSchedulePort.loadByBarberAndDate(
+            "shop-1", "barber-1", LocalDate.of(2026, 4, 10)))
+        .thenReturn(Optional.of(schedule));
+
+    BarberSchedule result = service.getSchedule("shop-1", "barber-1", "2026-04-10");
+
+    assertEquals("shop-1", result.getShopId());
+
+    assertEquals("barber-1", result.getBarberId());
+
+    assertEquals(30, result.getSlotDurationMinutes());
+
+    assertEquals(LocalTime.of(10, 0), result.getWorkStartTime());
+
+    assertEquals(LocalTime.of(18, 0), result.getWorkEndTime());
   }
 
   @Test
   void shouldThrowWhenScheduleDoesNotExist() {
+
+    when(loadBarberSchedulePort.loadByBarberAndDate(
+            "shop-1", "barber-9", LocalDate.of(2026, 4, 10)))
+        .thenReturn(Optional.empty());
+
     IllegalArgumentException exception =
         assertThrows(
             IllegalArgumentException.class,
@@ -62,11 +109,25 @@ class AvailabilityApplicationServiceTest {
 
   @Test
   void shouldValidateReservableSlot() {
+
+    when(loadBarberSchedulePort.loadByBarberAndDate(
+            "shop-1", "barber-1", LocalDate.of(2026, 4, 10)))
+        .thenReturn(Optional.of(barberSchedule()));
+
+    when(loadBarberAvailabilityPort.loadByBarberAndSlot(
+            "shop-1", "barber-1", LocalDate.of(2026, 4, 10), LocalTime.of(10, 0)))
+        .thenReturn(Optional.of(availableSlot()));
+
     assertDoesNotThrow(() -> service.validateSlot("shop-1", "barber-1", "2026-04-10", "10:00", 30));
   }
 
   @Test
   void shouldFailWhenDurationDoesNotMatchSchedule() {
+
+    when(loadBarberSchedulePort.loadByBarberAndDate(
+            "shop-1", "barber-1", LocalDate.of(2026, 4, 10)))
+        .thenReturn(Optional.of(barberSchedule()));
+
     SlotValidationException exception =
         assertThrows(
             SlotValidationException.class,
@@ -77,6 +138,11 @@ class AvailabilityApplicationServiceTest {
 
   @Test
   void shouldFailWhenSlotStartsBeforeWorkingHours() {
+
+    when(loadBarberSchedulePort.loadByBarberAndDate(
+            "shop-1", "barber-1", LocalDate.of(2026, 4, 10)))
+        .thenReturn(Optional.of(barberSchedule()));
+
     SlotValidationException exception =
         assertThrows(
             SlotValidationException.class,
@@ -87,11 +153,44 @@ class AvailabilityApplicationServiceTest {
 
   @Test
   void shouldFailWhenSlotDoesNotExist() {
+
+    when(loadBarberSchedulePort.loadByBarberAndDate(
+            "shop-1", "barber-1", LocalDate.of(2026, 4, 10)))
+        .thenReturn(Optional.of(barberSchedule()));
+
+    when(loadBarberAvailabilityPort.loadByBarberAndSlot(
+            "shop-1", "barber-1", LocalDate.of(2026, 4, 10), LocalTime.of(11, 0)))
+        .thenReturn(Optional.empty());
+
     SlotValidationException exception =
         assertThrows(
             SlotValidationException.class,
             () -> service.validateSlot("shop-1", "barber-1", "2026-04-10", "11:00", 30));
 
     assertEquals("Requested slot does not exist", exception.getMessage());
+  }
+
+  private BarberSchedule barberSchedule() {
+
+    return BarberSchedule.builder()
+        .shopId("shop-1")
+        .barberId("barber-1")
+        .date(LocalDate.of(2026, 4, 10))
+        .workStartTime(LocalTime.of(10, 0))
+        .workEndTime(LocalTime.of(18, 0))
+        .slotDurationMinutes(30)
+        .build();
+  }
+
+  private BarberAvailability availableSlot() {
+
+    return BarberAvailability.builder()
+        .shopId("shop-1")
+        .barberId("barber-1")
+        .date(LocalDate.of(2026, 4, 10))
+        .startTime(LocalTime.of(10, 0))
+        .durationMinutes(30)
+        .status(AvailabilityStatus.AVAILABLE)
+        .build();
   }
 }

@@ -7,11 +7,9 @@ import com.barbersaas.availability.domain.model.BarberAvailability;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Optional;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@Primary
 public class JpaBarberAvailabilityRepositoryAdapter
     implements LoadBarberAvailabilityPort, ReserveBarberAvailabilityPort {
 

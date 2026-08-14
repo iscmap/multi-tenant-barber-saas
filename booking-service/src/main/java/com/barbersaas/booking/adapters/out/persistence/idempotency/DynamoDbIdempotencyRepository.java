@@ -6,7 +6,6 @@ import com.barbersaas.booking.domain.model.idempotency.IdempotencyRecord;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -14,7 +13,6 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 
 @Repository
-@Primary
 public class DynamoDbIdempotencyRepository
     implements LoadIdempotencyRecordPort, SaveIdempotencyRecordPort {
 
