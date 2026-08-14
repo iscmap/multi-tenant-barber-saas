@@ -72,7 +72,8 @@ services:
     image: apache/kafka:4.1.2
     container_name: barber-kafka-init
     depends_on:
-      - kafka
+      kafka:
+        condition: service_started
     entrypoint:
       - /bin/sh
       - -c
@@ -94,6 +95,46 @@ services:
           --list
 
         echo "Kafka topics initialized"
+
+  booking-service:
+    build:
+      context: .
+      dockerfile: booking-service/Dockerfile
+    image: barber-booking-service:8.2
+    container_name: barber-booking-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/barbersaas?currentSchema=booking
+      SPRING_CLOUD_AWS_ENDPOINT: http://localstack:4566
+      BARBERSAAS_MESSAGING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+
+  availability-service:
+    build:
+      context: .
+      dockerfile: availability-service/Dockerfile
+    image: barber-availability-service:8.2
+    container_name: barber-availability-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/barbersaas?currentSchema=availability
+      SPRING_CLOUD_AWS_ENDPOINT: http://localstack:4566
+      BARBERSAAS_MESSAGING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
 
 volumes:
   postgres_data:
