@@ -3,9 +3,9 @@ services:
     image: postgres:16
     container_name: barber-postgres
     environment:
-      POSTGRES_DB: barbersaas
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-barbersaas}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
@@ -15,7 +15,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U postgres -d barbersaas"
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-barbersaas}"
         ]
       interval: 5s
       timeout: 5s
@@ -26,7 +26,7 @@ services:
     container_name: barber-localstack
     environment:
       SERVICES: sns,sqs,dynamodb
-      AWS_DEFAULT_REGION: us-east-1
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
       DEBUG: 1
     ports:
       - "4566:4566"
@@ -86,7 +86,7 @@ services:
           --bootstrap-server kafka:29092 \
           --create \
           --if-not-exists \
-          --topic booking-created-kafka \
+          --topic ${BOOKING_CREATED_KAFKA_TOPIC:-booking-created-kafka} \
           --partitions 3 \
           --replication-factor 1
 
@@ -100,14 +100,34 @@ services:
     build:
       context: .
       dockerfile: booking-service/Dockerfile
-    image: barber-booking-service:8.2
+    image: barber-booking-service:8.3
     container_name: barber-booking-service
     ports:
       - "8081:8081"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/barbersaas?currentSchema=booking
-      SPRING_CLOUD_AWS_ENDPOINT: http://localstack:4566
-      BARBERSAAS_MESSAGING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SERVER_PORT: 8081
+
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-barbersaas}?currentSchema=booking
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      AWS_ENDPOINT: http://localstack:4566
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY:-test}
+      AWS_SECRET_KEY: ${AWS_SECRET_KEY:-test}
+
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      BOOKING_CREATED_KAFKA_TOPIC: ${BOOKING_CREATED_KAFKA_TOPIC:-booking-created-kafka}
+      AVAILABILITY_KAFKA_CONSUMER_GROUP: ${AVAILABILITY_KAFKA_CONSUMER_GROUP:-availability-booking-created-group}
+      KAFKA_LISTENER_AUTO_STARTUP: ${KAFKA_LISTENER_AUTO_STARTUP:-true}
+
+      BOOKING_EVENTS_TOPIC: ${BOOKING_EVENTS_TOPIC:-booking-events}
+      BOOKING_CREATED_QUEUE: ${BOOKING_CREATED_QUEUE:-booking-created-queue}
+      AVAILABILITY_EVENTS_TOPIC: ${AVAILABILITY_EVENTS_TOPIC:-availability-events}
+      AVAILABILITY_DECIDED_QUEUE: ${AVAILABILITY_DECIDED_QUEUE:-availability-decided-queue}
+      BOOKING_EVENTS_DLQ: ${BOOKING_EVENTS_DLQ:-booking-events-dlq}
+      AVAILABILITY_EVENTS_DLQ: ${AVAILABILITY_EVENTS_DLQ:-availability-events-dlq}
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -120,14 +140,34 @@ services:
     build:
       context: .
       dockerfile: availability-service/Dockerfile
-    image: barber-availability-service:8.2
+    image: barber-availability-service:8.3
     container_name: barber-availability-service
     ports:
       - "8082:8082"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/barbersaas?currentSchema=availability
-      SPRING_CLOUD_AWS_ENDPOINT: http://localstack:4566
-      BARBERSAAS_MESSAGING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SERVER_PORT: 8082
+
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-barbersaas}?currentSchema=availability
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      AWS_ENDPOINT: http://localstack:4566
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY:-test}
+      AWS_SECRET_KEY: ${AWS_SECRET_KEY:-test}
+
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      BOOKING_CREATED_KAFKA_TOPIC: ${BOOKING_CREATED_KAFKA_TOPIC:-booking-created-kafka}
+      AVAILABILITY_KAFKA_CONSUMER_GROUP: ${AVAILABILITY_KAFKA_CONSUMER_GROUP:-availability-booking-created-group}
+      KAFKA_LISTENER_AUTO_STARTUP: ${KAFKA_LISTENER_AUTO_STARTUP:-true}
+
+      BOOKING_EVENTS_TOPIC: ${BOOKING_EVENTS_TOPIC:-booking-events}
+      BOOKING_CREATED_QUEUE: ${BOOKING_CREATED_QUEUE:-booking-created-queue}
+      AVAILABILITY_EVENTS_TOPIC: ${AVAILABILITY_EVENTS_TOPIC:-availability-events}
+      AVAILABILITY_DECIDED_QUEUE: ${AVAILABILITY_DECIDED_QUEUE:-availability-decided-queue}
+      BOOKING_EVENTS_DLQ: ${BOOKING_EVENTS_DLQ:-booking-events-dlq}
+      AVAILABILITY_EVENTS_DLQ: ${AVAILABILITY_EVENTS_DLQ:-availability-events-dlq}
+
     depends_on:
       postgres:
         condition: service_healthy

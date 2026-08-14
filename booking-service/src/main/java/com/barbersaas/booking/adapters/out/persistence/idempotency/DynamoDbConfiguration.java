@@ -14,13 +14,16 @@ public class DynamoDbConfiguration {
 
   @Bean
   public DynamoDbClient dynamoDbClient(
-      @Value("${spring.cloud.aws.endpoint:http://localhost:4566}") String awsEndpoint) {
+      @Value("${spring.cloud.aws.endpoint}") String awsEndpoint,
+      @Value("${spring.cloud.aws.region.static}") String awsRegion,
+      @Value("${spring.cloud.aws.credentials.access-key}") String accessKey,
+      @Value("${spring.cloud.aws.credentials.secret-key}") String secretKey) {
 
     return DynamoDbClient.builder()
         .endpointOverride(URI.create(awsEndpoint))
-        .region(Region.US_EAST_1)
+        .region(Region.of(awsRegion))
         .credentialsProvider(
-            StaticCredentialsProvider.create(AwsBasicCredentials.create("test", "test")))
+            StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
         .build();
   }
 }
