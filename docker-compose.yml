@@ -100,7 +100,7 @@ services:
     build:
       context: .
       dockerfile: booking-service/Dockerfile
-    image: barber-booking-service:8.3
+    image: barber-booking-service:8.4
     container_name: barber-booking-service
     ports:
       - "8081:8081"
@@ -136,11 +136,22 @@ services:
       kafka-init:
         condition: service_completed_successfully
 
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8081/actuator/health/readiness || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   availability-service:
     build:
       context: .
       dockerfile: availability-service/Dockerfile
-    image: barber-availability-service:8.3
+    image: barber-availability-service:8.4
     container_name: barber-availability-service
     ports:
       - "8082:8082"
@@ -175,6 +186,17 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8082/actuator/health/readiness || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   postgres_data:
