@@ -23,6 +23,12 @@ spring:
         format_sql: true
     show-sql: false
 
+  flyway:
+    enabled: true
+    default-schema: booking
+    schemas: booking
+    baseline-on-migrate: true
+
   cloud:
     aws:
       region:
