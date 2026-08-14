@@ -1,9 +1,14 @@
 package com.barbersaas.booking.application.service.timeout;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import com.barbersaas.booking.adapters.out.persistence.memory.InMemoryBookingRepository;
 import com.barbersaas.booking.application.command.timeout.RejectTimedOutBookingsCommand;
+import com.barbersaas.booking.application.port.out.SaveBookingPort;
+import com.barbersaas.booking.application.port.out.timeout.LoadPendingBookingsPort;
 import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
 import java.time.LocalDate;
@@ -11,16 +16,29 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class BookingTimeoutApplicationServiceTest {
 
-  private final InMemoryBookingRepository repository = new InMemoryBookingRepository();
-  private final BookingTimeoutApplicationService service =
-      new BookingTimeoutApplicationService(repository, repository);
+  private LoadPendingBookingsPort loadPendingBookingsPort;
+  private SaveBookingPort saveBookingPort;
+
+  private BookingTimeoutApplicationService service;
+
+  @BeforeEach
+  void setUp() {
+    loadPendingBookingsPort = mock(LoadPendingBookingsPort.class);
+
+    saveBookingPort = mock(SaveBookingPort.class);
+
+    service = new BookingTimeoutApplicationService(loadPendingBookingsPort, saveBookingPort);
+  }
 
   @Test
   void shouldRejectTimedOutPendingBookings() {
+
     Booking oldPendingBooking =
         Booking.builder()
             .bookingId("booking-old")
@@ -49,8 +67,11 @@ class BookingTimeoutApplicationServiceTest {
             .createdAt(LocalDateTime.of(2026, 4, 10, 10, 4))
             .build();
 
-    repository.save(oldPendingBooking);
-    repository.save(freshPendingBooking);
+    when(loadPendingBookingsPort.loadPendingBookings())
+        .thenReturn(List.of(oldPendingBooking, freshPendingBooking));
+
+    when(saveBookingPort.save(any(Booking.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
 
     RejectTimedOutBookingsCommand command =
         RejectTimedOutBookingsCommand.builder()
@@ -59,11 +80,13 @@ class BookingTimeoutApplicationServiceTest {
 
     int rejectedCount = service.rejectTimedOutBookings(command);
 
-    Booking updatedOldBooking = repository.loadById("booking-old").orElseThrow();
-    Booking updatedFreshBooking = repository.loadById("booking-fresh").orElseThrow();
-
     assertEquals(1, rejectedCount);
-    assertEquals(BookingStatus.REJECTED, updatedOldBooking.getStatus());
-    assertEquals(BookingStatus.PENDING, updatedFreshBooking.getStatus());
+
+    verify(saveBookingPort)
+        .save(
+            org.mockito.ArgumentMatchers.argThat(
+                booking ->
+                    booking.getBookingId().equals("booking-old")
+                        && booking.getStatus() == BookingStatus.REJECTED));
   }
 }
