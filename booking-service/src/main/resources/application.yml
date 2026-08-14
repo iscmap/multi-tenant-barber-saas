@@ -3,9 +3,9 @@ spring:
     name: booking-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/barbersaas?currentSchema=booking
-    username: postgres
-    password: postgres
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/barbersaas?currentSchema=booking}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: booking-service-pool
@@ -32,14 +32,14 @@ spring:
   cloud:
     aws:
       region:
-        static: us-east-1
+        static: ${AWS_REGION:us-east-1}
       credentials:
-        access-key: test
-        secret-key: test
-      endpoint: http://localhost:4566
+        access-key: ${AWS_ACCESS_KEY:test}
+        secret-key: ${AWS_SECRET_KEY:test}
+      endpoint: ${AWS_ENDPOINT:http://localhost:4566}
 
 server:
-  port: 8081
+  port: ${SERVER_PORT:8081}
 
 logging:
   pattern:
@@ -47,13 +47,13 @@ logging:
 
 barbersaas:
   messaging:
-    booking-events-topic: booking-events
-    booking-created-queue: booking-created-queue
-    availability-events-topic: availability-events
-    availability-decided-queue: availability-decided-queue
-    booking-events-dlq: booking-events-dlq
-    availability-events-dlq: availability-events-dlq
-    booking-created-kafka-topic: booking-created-kafka
-    availability-kafka-consumer-group: availability-booking-created-group
-    kafka-bootstrap-servers: localhost:9092
-    kafka-listener-auto-startup: true
+    booking-events-topic: ${BOOKING_EVENTS_TOPIC:booking-events}
+    booking-created-queue: ${BOOKING_CREATED_QUEUE:booking-created-queue}
+    availability-events-topic: ${AVAILABILITY_EVENTS_TOPIC:availability-events}
+    availability-decided-queue: ${AVAILABILITY_DECIDED_QUEUE:availability-decided-queue}
+    booking-events-dlq: ${BOOKING_EVENTS_DLQ:booking-events-dlq}
+    availability-events-dlq: ${AVAILABILITY_EVENTS_DLQ:availability-events-dlq}
+    booking-created-kafka-topic: ${BOOKING_CREATED_KAFKA_TOPIC:booking-created-kafka}
+    availability-kafka-consumer-group: ${AVAILABILITY_KAFKA_CONSUMER_GROUP:availability-booking-created-group}
+    kafka-bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    kafka-listener-auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}

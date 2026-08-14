@@ -6,7 +6,8 @@ COPY . .
 
 RUN chmod +x gradlew
 
-RUN ./gradlew :booking-service:bootJar --no-daemon
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew :booking-service:bootJar --no-daemon
 
 RUN JAR_FILE=$(find booking-service/build/libs \
     -maxdepth 1 \

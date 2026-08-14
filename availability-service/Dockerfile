@@ -6,7 +6,8 @@ COPY . .
 
 RUN chmod +x gradlew
 
-RUN ./gradlew :availability-service:bootJar --no-daemon
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew :availability-service:bootJar --no-daemon
 
 RUN JAR_FILE=$(find availability-service/build/libs \
     -maxdepth 1 \
