@@ -32,53 +32,12 @@ spec:
             - name: DB_URL
               value: "jdbc:postgresql://host.docker.internal:5432/barbersaas?currentSchema=booking"
 
-            - name: DB_USERNAME
-              value: "postgres"
+          envFrom:
+            - configMapRef:
+                name: barber-saas-config
 
-            - name: DB_PASSWORD
-              value: "postgres"
-
-            - name: AWS_ENDPOINT
-              value: "http://host.docker.internal:4566"
-
-            - name: AWS_REGION
-              value: "us-east-1"
-
-            - name: AWS_ACCESS_KEY
-              value: "test"
-
-            - name: AWS_SECRET_KEY
-              value: "test"
-
-            - name: KAFKA_BOOTSTRAP_SERVERS
-              value: "host.docker.internal:9092"
-
-            - name: BOOKING_CREATED_KAFKA_TOPIC
-              value: "booking-created-kafka"
-
-            - name: AVAILABILITY_KAFKA_CONSUMER_GROUP
-              value: "availability-booking-created-group"
-
-            - name: KAFKA_LISTENER_AUTO_STARTUP
-              value: "true"
-
-            - name: BOOKING_EVENTS_TOPIC
-              value: "booking-events"
-
-            - name: BOOKING_CREATED_QUEUE
-              value: "booking-created-queue"
-
-            - name: AVAILABILITY_EVENTS_TOPIC
-              value: "availability-events"
-
-            - name: AVAILABILITY_DECIDED_QUEUE
-              value: "availability-decided-queue"
-
-            - name: BOOKING_EVENTS_DLQ
-              value: "booking-events-dlq"
-
-            - name: AVAILABILITY_EVENTS_DLQ
-              value: "availability-events-dlq"
+            - secretRef:
+                name: barber-saas-secret
 
           livenessProbe:
             httpGet:
