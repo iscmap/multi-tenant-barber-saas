@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: booking-service
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: booking-service
+
+  template:
+    metadata:
+      labels:
+        app: booking-service
+
+    spec:
+      containers:
+        - name: booking-service
+          image: barber-booking-service:8.4
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - containerPort: 8081
+
+          env:
+            - name: SERVER_PORT
+              value: "8081"
+
+            - name: DB_URL
+              value: "jdbc:postgresql://host.docker.internal:5432/barbersaas?currentSchema=booking"
+
+            - name: DB_USERNAME
+              value: "postgres"
+
+            - name: DB_PASSWORD
+              value: "postgres"
+
+            - name: AWS_ENDPOINT
+              value: "http://host.docker.internal:4566"
+
+            - name: AWS_REGION
+              value: "us-east-1"
+
+            - name: AWS_ACCESS_KEY
+              value: "test"
+
+            - name: AWS_SECRET_KEY
+              value: "test"
+
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "host.docker.internal:9092"
+
+            - name: BOOKING_CREATED_KAFKA_TOPIC
+              value: "booking-created-kafka"
+
+            - name: AVAILABILITY_KAFKA_CONSUMER_GROUP
+              value: "availability-booking-created-group"
+
+            - name: KAFKA_LISTENER_AUTO_STARTUP
+              value: "true"
+
+            - name: BOOKING_EVENTS_TOPIC
+              value: "booking-events"
+
+            - name: BOOKING_CREATED_QUEUE
+              value: "booking-created-queue"
+
+            - name: AVAILABILITY_EVENTS_TOPIC
+              value: "availability-events"
+
+            - name: AVAILABILITY_DECIDED_QUEUE
+              value: "availability-decided-queue"
+
+            - name: BOOKING_EVENTS_DLQ
+              value: "booking-events-dlq"
+
+            - name: AVAILABILITY_EVENTS_DLQ
+              value: "availability-events-dlq"
+
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
