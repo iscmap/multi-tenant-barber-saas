@@ -89,5 +89,7 @@ infra/docker/localstack/state/**
 # Git hooks local temp files
 .githooks/*.tmp
 
-
+.aws/
+*.pem
+*.key
 
