@@ -1,0 +1,176 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Amazon EKS cluster for Multi-Tenant Barber SaaS development environment
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: barber-saas
+
+  Environment:
+    Type: String
+    Default: dev
+
+  KubernetesVersion:
+    Type: String
+    Default: "1.36"
+
+  PrivateSubnet1Id:
+    Type: AWS::EC2::Subnet::Id
+
+  PrivateSubnet2Id:
+    Type: AWS::EC2::Subnet::Id
+
+
+Resources:
+
+  EksClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-eks-cluster-role"
+
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - eks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+        - Key: Environment
+          Value: !Ref Environment
+
+
+  EksNodeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-eks-node-role"
+
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+        - Key: Environment
+          Value: !Ref Environment
+
+
+  EksCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}"
+
+      Version: !Ref KubernetesVersion
+
+      RoleArn: !GetAtt EksClusterRole.Arn
+
+      AccessConfig:
+        AuthenticationMode: API_AND_CONFIG_MAP
+        BootstrapClusterCreatorAdminPermissions: true
+
+      ResourcesVpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+
+        EndpointPublicAccess: true
+        EndpointPrivateAccess: true
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+        - Key: Environment
+          Value: !Ref Environment
+
+
+  EksNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    DependsOn:
+      - EksCluster
+
+    Properties:
+      ClusterName: !Ref EksCluster
+
+      NodegroupName: !Sub "${ProjectName}-${Environment}-nodes"
+
+      NodeRole: !GetAtt EksNodeRole.Arn
+
+      Subnets:
+        - !Ref PrivateSubnet1Id
+        - !Ref PrivateSubnet2Id
+
+      AmiType: AL2023_x86_64_STANDARD
+
+      CapacityType: ON_DEMAND
+
+      InstanceTypes:
+        - t3.medium
+
+      DiskSize: 20
+
+      ScalingConfig:
+        MinSize: 1
+        DesiredSize: 1
+        MaxSize: 2
+
+      UpdateConfig:
+        MaxUnavailable: 1
+
+      Labels:
+        environment: !Ref Environment
+        project: !Ref ProjectName
+
+      Tags:
+        Project: !Ref ProjectName
+        Environment: !Ref Environment
+
+
+Outputs:
+
+  ClusterName:
+    Description: Amazon EKS cluster name
+    Value: !Ref EksCluster
+
+  ClusterArn:
+    Description: Amazon EKS cluster ARN
+    Value: !GetAtt EksCluster.Arn
+
+  ClusterEndpoint:
+    Description: Kubernetes API endpoint
+    Value: !GetAtt EksCluster.Endpoint
+
+  ClusterRoleArn:
+    Description: EKS cluster IAM role
+    Value: !GetAtt EksClusterRole.Arn
+
+  NodeRoleArn:
+    Description: EKS worker node IAM role
+    Value: !GetAtt EksNodeRole.Arn
+
+  NodeGroupName:
+    Description: EKS managed node group
+    Value: !Ref EksNodeGroup
