@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Amazon ECR repositories for Multi-Tenant Barber SaaS
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: barber-saas
+
+  Environment:
+    Type: String
+    Default: dev
+
+Resources:
+
+  BookingServiceRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "${ProjectName}/${Environment}/booking-service"
+
+      ImageTagMutability: MUTABLE
+
+      EncryptionConfiguration:
+        EncryptionType: AES256
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+        - Key: Environment
+          Value: !Ref Environment
+
+
+  AvailabilityServiceRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "${ProjectName}/${Environment}/availability-service"
+
+      ImageTagMutability: MUTABLE
+
+      EncryptionConfiguration:
+        EncryptionType: AES256
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+        - Key: Environment
+          Value: !Ref Environment
+
+
+Outputs:
+
+  BookingRepositoryUri:
+    Description: Booking Service ECR repository URI
+    Value: !GetAtt BookingServiceRepository.RepositoryUri
+
+  AvailabilityRepositoryUri:
+    Description: Availability Service ECR repository URI
+    Value: !GetAtt AvailabilityServiceRepository.RepositoryUri
