@@ -28,6 +28,7 @@ public class SnsAvailabilityDecidedEventPublisher implements PublishAvailability
   @Override
   public void publish(EventEnvelope<AvailabilityDecidedEvent> eventEnvelope) {
     String payload = eventJsonParser.toJson(eventEnvelope);
-    publishMessagePort.publish(messagingProperties.getAvailabilityEventsTopic(), payload);
+
+    publishMessagePort.publish(messagingProperties.getAvailabilityEventsTopicArn(), payload);
   }
 }

@@ -4,26 +4,25 @@ import java.net.URI;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import org.springframework.util.StringUtils;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 
 @Configuration
 public class DynamoDbConfiguration {
 
   @Bean
   public DynamoDbClient dynamoDbClient(
-      @Value("${spring.cloud.aws.endpoint}") String awsEndpoint,
-      @Value("${spring.cloud.aws.region.static}") String awsRegion,
-      @Value("${spring.cloud.aws.credentials.access-key}") String accessKey,
-      @Value("${spring.cloud.aws.credentials.secret-key}") String secretKey) {
+      @Value("${spring.cloud.aws.region.static:us-east-1}") String awsRegion,
+      @Value("${spring.cloud.aws.endpoint:}") String awsEndpoint) {
 
-    return DynamoDbClient.builder()
-        .endpointOverride(URI.create(awsEndpoint))
-        .region(Region.of(awsRegion))
-        .credentialsProvider(
-            StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
-        .build();
+    DynamoDbClientBuilder builder = DynamoDbClient.builder().region(Region.of(awsRegion));
+
+    if (StringUtils.hasText(awsEndpoint)) {
+      builder.endpointOverride(URI.create(awsEndpoint));
+    }
+
+    return builder.build();
   }
 }

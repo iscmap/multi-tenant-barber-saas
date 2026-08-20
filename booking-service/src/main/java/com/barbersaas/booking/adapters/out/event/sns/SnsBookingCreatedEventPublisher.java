@@ -28,6 +28,7 @@ public class SnsBookingCreatedEventPublisher implements PublishBookingCreatedEve
   @Override
   public void publish(EventEnvelope<BookingCreatedEvent> eventEnvelope) {
     String payload = eventJsonParser.toJson(eventEnvelope);
-    publishMessagePort.publish(messagingProperties.getBookingEventsTopic(), payload);
+
+    publishMessagePort.publish(messagingProperties.getBookingEventsTopicArn(), payload);
   }
 }

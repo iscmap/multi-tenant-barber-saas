@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: booking-service
+
+spec:
+  replicas: 1
+
+  strategy:
+    type: RollingUpdate
+
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  selector:
+    matchLabels:
+      app: booking-service
+
+  template:
+    metadata:
+      labels:
+        app: booking-service
+
+    spec:
+      serviceAccountName: barber-saas-app
+
+      containers:
+        - name: booking-service
+
+          image: 170470812164.dkr.ecr.us-east-1.amazonaws.com/barber-saas/dev/booking-service:9.5.5
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 8081
+
+          env:
+            - name: SERVER_PORT
+              value: "8081"
+
+            - name: DB_URL
+              value: "jdbc:postgresql://postgres:5432/barbersaas?currentSchema=booking"
+
+          envFrom:
+            - configMapRef:
+                name: barber-saas-aws-config
+
+            - secretRef:
+                name: barber-saas-db-secret
+
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8081
+
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3

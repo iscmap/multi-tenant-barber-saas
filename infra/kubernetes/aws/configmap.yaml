@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: barber-saas-aws-config
+
+data:
+  AWS_REGION: "us-east-1"
+
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  BOOKING_CREATED_KAFKA_TOPIC: "booking-created-kafka"
+  AVAILABILITY_KAFKA_CONSUMER_GROUP: "availability-booking-created-group"
+  KAFKA_LISTENER_AUTO_STARTUP: "true"
+
+  BOOKING_EVENTS_TOPIC: "booking-events"
+  BOOKING_CREATED_QUEUE: "booking-created-queue"
+
+  AVAILABILITY_EVENTS_TOPIC: "availability-events"
+  AVAILABILITY_DECIDED_QUEUE: "availability-decided-queue"
+
+  BOOKING_EVENTS_DLQ: "booking-events-dlq"
+  AVAILABILITY_EVENTS_DLQ: "availability-events-dlq"

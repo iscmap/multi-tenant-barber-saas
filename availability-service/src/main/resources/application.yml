@@ -27,32 +27,15 @@ spring:
     enabled: true
     default-schema: availability
     schemas: availability
-    baseline-on-migrate: true
+    baseline-on-migrate: false
 
   cloud:
     aws:
       region:
         static: ${AWS_REGION:us-east-1}
-      credentials:
-        access-key: ${AWS_ACCESS_KEY:test}
-        secret-key: ${AWS_SECRET_KEY:test}
-      endpoint: ${AWS_ENDPOINT:http://localhost:4566}
 
 server:
   port: ${SERVER_PORT:8082}
-
-barbersaas:
-  messaging:
-    booking-events-topic: ${BOOKING_EVENTS_TOPIC:booking-events}
-    booking-created-queue: ${BOOKING_CREATED_QUEUE:booking-created-queue}
-    availability-events-topic: ${AVAILABILITY_EVENTS_TOPIC:availability-events}
-    availability-decided-queue: ${AVAILABILITY_DECIDED_QUEUE:availability-decided-queue}
-    booking-events-dlq: ${BOOKING_EVENTS_DLQ:booking-events-dlq}
-    availability-events-dlq: ${AVAILABILITY_EVENTS_DLQ:availability-events-dlq}
-    booking-created-kafka-topic: ${BOOKING_CREATED_KAFKA_TOPIC:booking-created-kafka}
-    availability-kafka-consumer-group: ${AVAILABILITY_KAFKA_CONSUMER_GROUP:availability-booking-created-group}
-    kafka-bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    kafka-listener-auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}
 
 management:
   endpoints:
@@ -66,3 +49,18 @@ management:
       probes:
         enabled: true
         add-additional-paths: true
+
+barbersaas:
+  messaging:
+    booking-events-topic: ${BOOKING_EVENTS_TOPIC:booking-events}
+    booking-events-topic-arn: ${BOOKING_EVENTS_TOPIC_ARN:}
+    booking-created-queue: ${BOOKING_CREATED_QUEUE:booking-created-queue}
+    availability-events-topic: ${AVAILABILITY_EVENTS_TOPIC:availability-events}
+    availability-events-topic-arn: ${AVAILABILITY_EVENTS_TOPIC_ARN:}
+    availability-decided-queue: ${AVAILABILITY_DECIDED_QUEUE:availability-decided-queue}
+    booking-events-dlq: ${BOOKING_EVENTS_DLQ:booking-events-dlq}
+    availability-events-dlq: ${AVAILABILITY_EVENTS_DLQ:availability-events-dlq}
+    booking-created-kafka-topic: ${BOOKING_CREATED_KAFKA_TOPIC:booking-created-kafka}
+    availability-kafka-consumer-group: ${AVAILABILITY_KAFKA_CONSUMER_GROUP:availability-booking-created-group}
+    kafka-bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    kafka-listener-auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}

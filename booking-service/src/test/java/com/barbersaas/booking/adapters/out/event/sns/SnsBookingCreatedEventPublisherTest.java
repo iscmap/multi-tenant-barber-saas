@@ -12,12 +12,15 @@ import org.junit.jupiter.api.Test;
 
 class SnsBookingCreatedEventPublisherTest {
 
+  private static final String BOOKING_EVENTS_TOPIC_ARN =
+      "arn:aws:sns:us-east-1:000000000000:booking-events";
+
   private final PublishMessagePort publishMessagePort = mock(PublishMessagePort.class);
 
   @Test
   void shouldSerializeAndPublishBookingCreatedEventEnvelope() {
     MessagingProperties properties = new MessagingProperties();
-    properties.setBookingEventsTopic("booking-events");
+    properties.setBookingEventsTopicArn(BOOKING_EVENTS_TOPIC_ARN);
 
     SnsBookingCreatedEventPublisher publisher =
         new SnsBookingCreatedEventPublisher(publishMessagePort, properties);
@@ -54,9 +57,9 @@ class SnsBookingCreatedEventPublisherTest {
 
     verify(publishMessagePort)
         .publish(
-            eq("booking-events"),
+            eq(BOOKING_EVENTS_TOPIC_ARN),
             eq(
-"""
-{"eventId":"evt-1","eventType":"BookingCreated","occurredAt":"2026-04-10T10:00:00Z","correlationId":"corr-1","source":"booking-service","tenantId":"shop-1","payload":{"eventId":"evt-1","eventType":"BookingCreated","occurredAt":"2026-04-10T10:00:00Z","correlationId":"corr-1","bookingId":"booking-1","shopId":"shop-1","barberId":"barber-1","customerId":"customer-1","date":"2026-04-10","startTime":"10:00:00","durationMinutes":30,"serviceCode":"HAIRCUT","status":"PENDING"}}"""));
+                """
+                            {"eventId":"evt-1","eventType":"BookingCreated","occurredAt":"2026-04-10T10:00:00Z","correlationId":"corr-1","source":"booking-service","tenantId":"shop-1","payload":{"eventId":"evt-1","eventType":"BookingCreated","occurredAt":"2026-04-10T10:00:00Z","correlationId":"corr-1","bookingId":"booking-1","shopId":"shop-1","barberId":"barber-1","customerId":"customer-1","date":"2026-04-10","startTime":"10:00:00","durationMinutes":30,"serviceCode":"HAIRCUT","status":"PENDING"}}"""));
   }
 }
