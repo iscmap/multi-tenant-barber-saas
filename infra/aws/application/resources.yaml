@@ -1,0 +1,226 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: AWS application resources for Multi-Tenant Barber SaaS
+
+Parameters:
+  ClusterName:
+    Type: String
+    Default: barber-saas-dev
+
+  Namespace:
+    Type: String
+    Default: default
+
+  ServiceAccountName:
+    Type: String
+    Default: barber-saas-app
+
+Resources:
+
+  BookingEventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: booking-events
+
+  AvailabilityEventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: availability-events
+
+
+  BookingEventsDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: booking-events-dlq
+
+  AvailabilityEventsDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: availability-events-dlq
+
+
+  BookingCreatedQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: booking-created-queue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt BookingEventsDlq.Arn
+        maxReceiveCount: 5
+
+  AvailabilityDecidedQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: availability-decided-queue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt AvailabilityEventsDlq.Arn
+        maxReceiveCount: 5
+
+
+  BookingCreatedQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref BookingCreatedQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action:
+              - sqs:SendMessage
+            Resource: !GetAtt BookingCreatedQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref BookingEventsTopic
+
+
+  AvailabilityDecidedQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref AvailabilityDecidedQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action:
+              - sqs:SendMessage
+            Resource: !GetAtt AvailabilityDecidedQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref AvailabilityEventsTopic
+
+
+  BookingCreatedSubscription:
+    Type: AWS::SNS::Subscription
+    DependsOn:
+      - BookingCreatedQueuePolicy
+    Properties:
+      TopicArn: !Ref BookingEventsTopic
+      Protocol: sqs
+      Endpoint: !GetAtt BookingCreatedQueue.Arn
+      RawMessageDelivery: true
+
+
+  AvailabilityDecidedSubscription:
+    Type: AWS::SNS::Subscription
+    DependsOn:
+      - AvailabilityDecidedQueuePolicy
+    Properties:
+      TopicArn: !Ref AvailabilityEventsTopic
+      Protocol: sqs
+      Endpoint: !GetAtt AvailabilityDecidedQueue.Arn
+      RawMessageDelivery: true
+
+
+  IdempotencyTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: idempotency_keys
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: idempotencyKey
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: idempotencyKey
+          KeyType: HASH
+
+
+  ProcessedBookingEventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: processed_booking_events
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: bookingIdEventType
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: bookingIdEventType
+          KeyType: HASH
+
+
+  ApplicationPodRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: barber-saas-dev-pod-role
+
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - pods.eks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+              - sts:TagSession
+
+      Policies:
+        - PolicyName: barber-saas-application-access
+          PolicyDocument:
+            Version: "2012-10-17"
+
+            Statement:
+              - Sid: SnsAccess
+                Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Ref BookingEventsTopic
+                  - !Ref AvailabilityEventsTopic
+
+              - Sid: SqsAccess
+                Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:ChangeMessageVisibility
+                  - sqs:GetQueueAttributes
+                  - sqs:GetQueueUrl
+                Resource:
+                  - !GetAtt BookingCreatedQueue.Arn
+                  - !GetAtt AvailabilityDecidedQueue.Arn
+                  - !GetAtt BookingEventsDlq.Arn
+                  - !GetAtt AvailabilityEventsDlq.Arn
+
+              - Sid: DynamoDbAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:DescribeTable
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt IdempotencyTable.Arn
+                  - !GetAtt ProcessedBookingEventsTable.Arn
+
+
+  ApplicationPodIdentityAssociation:
+    Type: AWS::EKS::PodIdentityAssociation
+    Properties:
+      ClusterName: !Ref ClusterName
+      Namespace: !Ref Namespace
+      ServiceAccount: !Ref ServiceAccountName
+      RoleArn: !GetAtt ApplicationPodRole.Arn
+
+
+Outputs:
+
+  ApplicationPodRoleArn:
+    Value: !GetAtt ApplicationPodRole.Arn
+
+  BookingEventsTopicArn:
+    Value: !Ref BookingEventsTopic
+
+  AvailabilityEventsTopicArn:
+    Value: !Ref AvailabilityEventsTopic

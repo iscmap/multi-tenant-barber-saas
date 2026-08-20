@@ -4,7 +4,6 @@ import com.barbersaas.booking.application.classifier.MessageFailureClassifier;
 import com.barbersaas.booking.application.port.in.event.ConsumeAvailabilityDecidedUseCase;
 import com.barbersaas.booking.domain.exception.messaging.NonRetryableMessageException;
 import com.barbersaas.booking.domain.exception.messaging.RetryableMessageException;
-import io.awspring.cloud.sqs.annotation.SnsNotificationMessage;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +26,7 @@ public class AvailabilityDecidedSqsListener {
   }
 
   @SqsListener("${barbersaas.messaging.availability-decided-queue}")
-  public void listen(@SnsNotificationMessage String payload) {
+  public void listen(String payload) {
     try {
       consumeAvailabilityDecidedUseCase.consume(payload);
     } catch (RuntimeException exception) {

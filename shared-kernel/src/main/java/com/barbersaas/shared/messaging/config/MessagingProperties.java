@@ -10,8 +10,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class MessagingProperties {
 
   private String bookingEventsTopic;
+  private String bookingEventsTopicArn;
   private String bookingCreatedQueue;
   private String availabilityEventsTopic;
+  private String availabilityEventsTopicArn;
   private String availabilityDecidedQueue;
   private String bookingEventsDlq;
   private String availabilityEventsDlq;
