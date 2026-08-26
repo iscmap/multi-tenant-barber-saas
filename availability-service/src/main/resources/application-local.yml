@@ -1,3 +1,15 @@
+spring:
+  cloud:
+    aws:
+      endpoint: ${AWS_ENDPOINT:http://localhost:4566}
+
+      sqs:
+        endpoint: ${AWS_ENDPOINT:http://localhost:4566}
+
+      sns:
+        endpoint: ${AWS_ENDPOINT:http://localhost:4566}
+
 barbersaas:
   messaging:
+    booking-events-topic-arn: ${BOOKING_EVENTS_TOPIC_ARN:arn:aws:sns:us-east-1:000000000000:booking-events}
     availability-events-topic-arn: ${AVAILABILITY_EVENTS_TOPIC_ARN:arn:aws:sns:us-east-1:000000000000:availability-events}
