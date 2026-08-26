@@ -24,6 +24,8 @@ dependencies {
 
 	implementation 'org.flywaydb:flyway-core'
 
+	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.kafka:spring-kafka-test'
 }
