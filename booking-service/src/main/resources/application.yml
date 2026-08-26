@@ -50,10 +50,6 @@ management:
         enabled: true
         add-additional-paths: true
 
-logging:
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{36} correlationId=%X{correlationId} - %msg%n"
-
 barbersaas:
   messaging:
     booking-events-topic: ${BOOKING_EVENTS_TOPIC:booking-events}

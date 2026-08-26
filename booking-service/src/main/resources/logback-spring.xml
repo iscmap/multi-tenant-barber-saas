@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <appender name="CONSOLE"
+              class="ch.qos.logback.core.ConsoleAppender">
+
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+
+            <providers>
+
+                <timestamp>
+                    <fieldName>timestamp</fieldName>
+                </timestamp>
+
+                <pattern>
+                    <pattern>
+                        {
+                        "service": "booking-service"
+                        }
+                    </pattern>
+                </pattern>
+
+                <logLevel>
+                    <fieldName>level</fieldName>
+                </logLevel>
+
+                <threadName>
+                    <fieldName>thread</fieldName>
+                </threadName>
+
+                <loggerName>
+                    <fieldName>logger</fieldName>
+                </loggerName>
+
+                <mdc/>
+
+                <message>
+                    <fieldName>message</fieldName>
+                </message>
+
+                <stackTrace>
+                    <fieldName>stackTrace</fieldName>
+                </stackTrace>
+
+            </providers>
+
+        </encoder>
+
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>

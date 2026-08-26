@@ -114,8 +114,8 @@ services:
 
       AWS_ENDPOINT: http://localstack:4566
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY:-test}
-      AWS_SECRET_KEY: ${AWS_SECRET_KEY:-test}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
 
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       BOOKING_CREATED_KAFKA_TOPIC: ${BOOKING_CREATED_KAFKA_TOPIC:-booking-created-kafka}
@@ -166,8 +166,8 @@ services:
 
       AWS_ENDPOINT: http://localstack:4566
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY:-test}
-      AWS_SECRET_KEY: ${AWS_SECRET_KEY:-test}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
 
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       BOOKING_CREATED_KAFKA_TOPIC: ${BOOKING_CREATED_KAFKA_TOPIC:-booking-created-kafka}
