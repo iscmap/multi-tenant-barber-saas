@@ -213,7 +213,24 @@ services:
       availability-service:
         condition: service_healthy
 
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: barber-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   postgres_data:
   localstack_data:
   kafka_data:
+  grafana_data:
