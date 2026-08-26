@@ -1,4 +1,4 @@
-package com.barbersaas.booking.adapters.in.web.filter;
+package com.barbersaas.availability.adapters.in.web.filter;
 
 import com.barbersaas.shared.logging.CorrelationIdHolder;
 import jakarta.servlet.FilterChain;
