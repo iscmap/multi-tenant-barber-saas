@@ -41,7 +41,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,metrics
 
   endpoint:
     health:
@@ -49,6 +49,10 @@ management:
       probes:
         enabled: true
         add-additional-paths: true
+
+  metrics:
+    tags:
+      application: ${spring.application.name}
 
 barbersaas:
   messaging:
