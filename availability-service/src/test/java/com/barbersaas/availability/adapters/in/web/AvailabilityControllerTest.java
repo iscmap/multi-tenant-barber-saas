@@ -3,6 +3,7 @@ package com.barbersaas.availability.adapters.in.web;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -49,7 +50,7 @@ class AvailabilityControllerTest {
         .thenReturn(availability);
 
     mockMvc
-        .perform(get("/api/v1/availability/shop-1/barber-1/2026-04-10/10:00"))
+        .perform(get("/api/v1/availability/shop-1/barber-1/2026-04-10/10:00").with(jwt()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.shopId").value("shop-1"))
         .andExpect(jsonPath("$.barberId").value("barber-1"))
@@ -72,7 +73,7 @@ class AvailabilityControllerTest {
         .thenReturn(schedule);
 
     mockMvc
-        .perform(get("/api/v1/availability/schedule/shop-1/barber-1/2026-04-10"))
+        .perform(get("/api/v1/availability/schedule/shop-1/barber-1/2026-04-10").with(jwt()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.shopId").value("shop-1"))
         .andExpect(jsonPath("$.barberId").value("barber-1"))
@@ -88,7 +89,8 @@ class AvailabilityControllerTest {
         .validateSlot("shop-1", "barber-1", "2026-04-10", "10:00", 30);
 
     mockMvc
-        .perform(get("/api/v1/availability/validate/shop-1/barber-1/2026-04-10/10:00/30"))
+        .perform(
+            get("/api/v1/availability/validate/shop-1/barber-1/2026-04-10/10:00/30").with(jwt()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.valid").value(true))
         .andExpect(jsonPath("$.shopId").value("shop-1"))

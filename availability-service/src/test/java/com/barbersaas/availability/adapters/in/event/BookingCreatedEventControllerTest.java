@@ -2,6 +2,7 @@ package com.barbersaas.availability.adapters.in.event;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -47,6 +48,7 @@ class BookingCreatedEventControllerTest {
     mockMvc
         .perform(
             post("/api/v1/internal/events/booking-created")
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(payload))
         .andExpect(status().isAccepted())
