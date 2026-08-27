@@ -12,6 +12,7 @@ import com.barbersaas.availability.domain.enums.AvailabilityStatus;
 import com.barbersaas.availability.domain.exception.SlotValidationException;
 import com.barbersaas.availability.domain.model.BarberAvailability;
 import com.barbersaas.availability.domain.model.BarberSchedule;
+import com.barbersaas.availability.observability.metrics.AvailabilityMetrics;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Optional;
@@ -24,6 +25,7 @@ class AvailabilityApplicationServiceTest {
   private LoadBarberSchedulePort loadBarberSchedulePort;
 
   private AvailabilityApplicationService service;
+  private AvailabilityMetrics availabilityMetrics;
 
   @BeforeEach
   void setUp() {
@@ -31,8 +33,11 @@ class AvailabilityApplicationServiceTest {
 
     loadBarberSchedulePort = mock(LoadBarberSchedulePort.class);
 
+    availabilityMetrics = mock(AvailabilityMetrics.class);
+
     service =
-        new AvailabilityApplicationService(loadBarberAvailabilityPort, loadBarberSchedulePort);
+        new AvailabilityApplicationService(
+            loadBarberAvailabilityPort, loadBarberSchedulePort, availabilityMetrics);
   }
 
   @Test

@@ -8,6 +8,7 @@ import com.barbersaas.availability.application.port.out.schedule.LoadBarberSched
 import com.barbersaas.availability.domain.model.BarberAvailability;
 import com.barbersaas.availability.domain.model.BarberSchedule;
 import com.barbersaas.availability.domain.rule.SlotValidationRules;
+import com.barbersaas.availability.observability.metrics.AvailabilityMetrics;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import org.springframework.stereotype.Service;
@@ -18,17 +19,23 @@ public class AvailabilityApplicationService
 
   private final LoadBarberAvailabilityPort loadBarberAvailabilityPort;
   private final LoadBarberSchedulePort loadBarberSchedulePort;
+  private final AvailabilityMetrics availabilityMetrics;
 
   public AvailabilityApplicationService(
       LoadBarberAvailabilityPort loadBarberAvailabilityPort,
-      LoadBarberSchedulePort loadBarberSchedulePort) {
+      LoadBarberSchedulePort loadBarberSchedulePort,
+      AvailabilityMetrics availabilityMetrics) {
     this.loadBarberAvailabilityPort = loadBarberAvailabilityPort;
     this.loadBarberSchedulePort = loadBarberSchedulePort;
+    this.availabilityMetrics = availabilityMetrics;
   }
 
   @Override
   public BarberAvailability getAvailability(
       String shopId, String barberId, String date, String startTime) {
+
+    availabilityMetrics.availabilityLookup();
+
     return loadBarberAvailabilityPort
         .loadByBarberAndSlot(shopId, barberId, LocalDate.parse(date), LocalTime.parse(startTime))
         .orElseThrow(
@@ -55,6 +62,7 @@ public class AvailabilityApplicationService
   @Override
   public void validateSlot(
       String shopId, String barberId, String date, String startTime, int durationMinutes) {
+
     LocalDate localDate = LocalDate.parse(date);
     LocalTime localStartTime = LocalTime.parse(startTime);
 
@@ -66,6 +74,14 @@ public class AvailabilityApplicationService
             .loadByBarberAndSlot(shopId, barberId, localDate, localStartTime)
             .orElse(null);
 
-    SlotValidationRules.validateReservable(schedule, availability, localStartTime, durationMinutes);
+    try {
+      SlotValidationRules.validateReservable(
+          schedule, availability, localStartTime, durationMinutes);
+
+      availabilityMetrics.slotValidationSucceeded();
+    } catch (RuntimeException exception) {
+      availabilityMetrics.slotValidationRejected();
+      throw exception;
+    }
   }
 }
