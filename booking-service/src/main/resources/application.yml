@@ -49,6 +49,15 @@ management:
       probes:
         enabled: true
         add-additional-paths: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
+
+  health:
+    db:
+      enabled: true
 
   metrics:
     tags:
