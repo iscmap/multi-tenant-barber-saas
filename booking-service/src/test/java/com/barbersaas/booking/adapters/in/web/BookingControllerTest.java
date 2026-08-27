@@ -2,6 +2,7 @@ package com.barbersaas.booking.adapters.in.web;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -58,20 +59,21 @@ class BookingControllerTest {
 
     String requestBody =
         """
-                {
-                  "shopId": "shop-1",
-                  "barberId": "barber-1",
-                  "customerId": "customer-1",
-                  "date": "2026-04-10",
-                  "startTime": "10:00:00",
-                  "durationMinutes": 30,
-                  "serviceCode": "HAIRCUT"
-                }
-                """;
+            {
+              "shopId": "shop-1",
+              "barberId": "barber-1",
+              "customerId": "customer-1",
+              "date": "2026-04-10",
+              "startTime": "10:00:00",
+              "durationMinutes": 30,
+              "serviceCode": "HAIRCUT"
+            }
+            """;
 
     mockMvc
         .perform(
             post("/api/v1/bookings")
+                .with(jwt())
                 .header("X-Correlation-Id", "corr-123")
                 .header("Idempotency-Key", "idem-header-1")
                 .contentType("application/json")
@@ -86,20 +88,21 @@ class BookingControllerTest {
   void shouldFailWhenIdempotencyHeaderIsMissing() throws Exception {
     String requestBody =
         """
-                {
-                  "shopId": "shop-1",
-                  "barberId": "barber-1",
-                  "customerId": "customer-1",
-                  "date": "2026-04-10",
-                  "startTime": "10:00:00",
-                  "durationMinutes": 30,
-                  "serviceCode": "HAIRCUT"
-                }
-                """;
+            {
+              "shopId": "shop-1",
+              "barberId": "barber-1",
+              "customerId": "customer-1",
+              "date": "2026-04-10",
+              "startTime": "10:00:00",
+              "durationMinutes": 30,
+              "serviceCode": "HAIRCUT"
+            }
+            """;
 
     mockMvc
         .perform(
             post("/api/v1/bookings")
+                .with(jwt())
                 .header("X-Correlation-Id", "corr-124")
                 .contentType("application/json")
                 .content(requestBody))
@@ -110,20 +113,21 @@ class BookingControllerTest {
   void shouldReturnProblemJsonForValidationError() throws Exception {
     String requestBody =
         """
-                {
-                  "shopId": "",
-                  "barberId": "barber-1",
-                  "customerId": "customer-1",
-                  "date": "2026-04-10",
-                  "startTime": "10:00:00",
-                  "durationMinutes": 0,
-                  "serviceCode": ""
-                }
-                """;
+            {
+              "shopId": "",
+              "barberId": "barber-1",
+              "customerId": "customer-1",
+              "date": "2026-04-10",
+              "startTime": "10:00:00",
+              "durationMinutes": 0,
+              "serviceCode": ""
+            }
+            """;
 
     mockMvc
         .perform(
             post("/api/v1/bookings")
+                .with(jwt())
                 .header("X-Correlation-Id", "corr-456")
                 .header("Idempotency-Key", "idem-header-2")
                 .contentType("application/json")
@@ -154,7 +158,8 @@ class BookingControllerTest {
     when(getBookingUseCase.getBooking(any())).thenReturn(booking);
 
     mockMvc
-        .perform(get("/api/v1/bookings/booking-123").header("X-Correlation-Id", "corr-789"))
+        .perform(
+            get("/api/v1/bookings/booking-123").with(jwt()).header("X-Correlation-Id", "corr-789"))
         .andExpect(status().isOk())
         .andExpect(header().string("X-Correlation-Id", "corr-789"))
         .andExpect(jsonPath("$.bookingId").value("booking-123"))
@@ -168,7 +173,8 @@ class BookingControllerTest {
         .thenThrow(new IllegalArgumentException("Booking not found: missing-id"));
 
     mockMvc
-        .perform(get("/api/v1/bookings/missing-id").header("X-Correlation-Id", "corr-999"))
+        .perform(
+            get("/api/v1/bookings/missing-id").with(jwt()).header("X-Correlation-Id", "corr-999"))
         .andExpect(status().isNotFound())
         .andExpect(header().string("X-Correlation-Id", "corr-999"))
         .andExpect(jsonPath("$.title").value("Resource not found"))
@@ -184,6 +190,7 @@ class BookingControllerTest {
     mockMvc
         .perform(
             post("/api/v1/internal/bookings/reject-timeouts")
+                .with(jwt())
                 .header("X-Correlation-Id", "corr-777"))
         .andExpect(status().isOk())
         .andExpect(header().string("X-Correlation-Id", "corr-777"))
