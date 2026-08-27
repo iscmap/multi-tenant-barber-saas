@@ -23,6 +23,7 @@ import com.barbersaas.booking.application.query.GetBookingQuery;
 import com.barbersaas.booking.domain.enums.BookingStatus;
 import com.barbersaas.booking.domain.model.Booking;
 import com.barbersaas.booking.domain.model.idempotency.IdempotencyRecord;
+import com.barbersaas.booking.observability.metrics.BookingMetrics;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -50,6 +51,8 @@ class BookingApplicationServiceTest {
 
   private Map<String, Booking> bookingStorage;
   private Map<String, IdempotencyRecord> idempotencyStorage;
+  private BookingMetrics bookingMetrics;
+  ;
 
   @BeforeEach
   @SuppressWarnings("unchecked")
@@ -67,6 +70,8 @@ class BookingApplicationServiceTest {
     kafkaBookingCreatedEventPublisher = mock(KafkaBookingCreatedEventPublisher.class);
 
     kafkaPublisherProvider = mock(ObjectProvider.class);
+
+    bookingMetrics = mock(BookingMetrics.class);
 
     bookingStorage = new HashMap<>();
     idempotencyStorage = new HashMap<>();
@@ -132,7 +137,8 @@ class BookingApplicationServiceTest {
             new BookingEventFactory(),
             loadIdempotencyRecordPort,
             saveIdempotencyRecordPort,
-            kafkaPublisherProvider);
+            kafkaPublisherProvider,
+            bookingMetrics);
   }
 
   @Test
