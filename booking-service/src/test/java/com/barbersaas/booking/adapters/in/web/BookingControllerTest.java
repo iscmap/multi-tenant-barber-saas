@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(BookingController.class)
@@ -73,7 +74,11 @@ class BookingControllerTest {
     mockMvc
         .perform(
             post("/api/v1/bookings")
-                .with(jwt())
+                .with(
+                    jwt()
+                        .authorities(
+                            new SimpleGrantedAuthority("ROLE_CUSTOMER"),
+                            new SimpleGrantedAuthority("SCOPE_bookings.write")))
                 .header("X-Correlation-Id", "corr-123")
                 .header("Idempotency-Key", "idem-header-1")
                 .contentType("application/json")
@@ -102,7 +107,11 @@ class BookingControllerTest {
     mockMvc
         .perform(
             post("/api/v1/bookings")
-                .with(jwt())
+                .with(
+                    jwt()
+                        .authorities(
+                            new SimpleGrantedAuthority("ROLE_CUSTOMER"),
+                            new SimpleGrantedAuthority("SCOPE_bookings.write")))
                 .header("X-Correlation-Id", "corr-124")
                 .contentType("application/json")
                 .content(requestBody))
@@ -127,7 +136,11 @@ class BookingControllerTest {
     mockMvc
         .perform(
             post("/api/v1/bookings")
-                .with(jwt())
+                .with(
+                    jwt()
+                        .authorities(
+                            new SimpleGrantedAuthority("ROLE_CUSTOMER"),
+                            new SimpleGrantedAuthority("SCOPE_bookings.write")))
                 .header("X-Correlation-Id", "corr-456")
                 .header("Idempotency-Key", "idem-header-2")
                 .contentType("application/json")
