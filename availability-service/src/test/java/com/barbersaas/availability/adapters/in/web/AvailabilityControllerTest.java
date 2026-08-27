@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(AvailabilityController.class)
@@ -50,7 +51,13 @@ class AvailabilityControllerTest {
         .thenReturn(availability);
 
     mockMvc
-        .perform(get("/api/v1/availability/shop-1/barber-1/2026-04-10/10:00").with(jwt()))
+        .perform(
+            get("/api/v1/availability/shop-1/barber-1/2026-04-10/10:00")
+                .with(
+                    jwt()
+                        .authorities(
+                            new SimpleGrantedAuthority("ROLE_CUSTOMER"),
+                            new SimpleGrantedAuthority("SCOPE_availability.read"))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.shopId").value("shop-1"))
         .andExpect(jsonPath("$.barberId").value("barber-1"))
@@ -73,7 +80,13 @@ class AvailabilityControllerTest {
         .thenReturn(schedule);
 
     mockMvc
-        .perform(get("/api/v1/availability/schedule/shop-1/barber-1/2026-04-10").with(jwt()))
+        .perform(
+            get("/api/v1/availability/schedule/shop-1/barber-1/2026-04-10")
+                .with(
+                    jwt()
+                        .authorities(
+                            new SimpleGrantedAuthority("ROLE_CUSTOMER"),
+                            new SimpleGrantedAuthority("SCOPE_availability.read"))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.shopId").value("shop-1"))
         .andExpect(jsonPath("$.barberId").value("barber-1"))
@@ -90,7 +103,12 @@ class AvailabilityControllerTest {
 
     mockMvc
         .perform(
-            get("/api/v1/availability/validate/shop-1/barber-1/2026-04-10/10:00/30").with(jwt()))
+            get("/api/v1/availability/validate/shop-1/barber-1/2026-04-10/10:00/30")
+                .with(
+                    jwt()
+                        .authorities(
+                            new SimpleGrantedAuthority("ROLE_CUSTOMER"),
+                            new SimpleGrantedAuthority("SCOPE_availability.read"))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.valid").value(true))
         .andExpect(jsonPath("$.shopId").value("shop-1"))

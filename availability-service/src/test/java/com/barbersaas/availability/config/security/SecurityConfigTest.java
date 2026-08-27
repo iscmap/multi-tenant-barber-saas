@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -39,14 +40,21 @@ class SecurityConfigTest {
   @MockBean private ValidateSlotUseCase validateSlotUseCase;
 
   @Test
-  void shouldRejectApiRequestWithoutJwt() throws Exception {
+  void shouldRejectRequestWithoutJwt() throws Exception {
     mockMvc
         .perform(get("/api/v1/availability/shop-1/barber-1/2026-04-10/10:00"))
         .andExpect(status().isUnauthorized());
   }
 
   @Test
-  void shouldAllowApiRequestWithJwt() throws Exception {
+  void shouldRejectRequestWithoutRequiredAuthorities() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/availability/shop-1/barber-1/2026-04-10/10:00").with(jwt()))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void shouldAllowAuthorizedCustomer() throws Exception {
     BarberAvailability availability =
         BarberAvailability.builder()
             .shopId("shop-1")
@@ -62,7 +70,13 @@ class SecurityConfigTest {
         .thenReturn(availability);
 
     mockMvc
-        .perform(get("/api/v1/availability/shop-1/barber-1/2026-04-10/10:00").with(jwt()))
+        .perform(
+            get("/api/v1/availability/shop-1/barber-1/2026-04-10/10:00")
+                .with(
+                    jwt()
+                        .authorities(
+                            new SimpleGrantedAuthority("ROLE_CUSTOMER"),
+                            new SimpleGrantedAuthority("SCOPE_availability.read"))))
         .andExpect(status().isOk());
   }
 }

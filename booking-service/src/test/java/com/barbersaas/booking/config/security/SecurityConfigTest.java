@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -36,16 +37,29 @@ class SecurityConfigTest {
   @MockBean private BookingApiMapper bookingApiMapper;
 
   @Test
-  void shouldRejectApiRequestWithoutJwt() throws Exception {
+  void shouldRejectInternalRequestWithoutJwt() throws Exception {
     mockMvc
         .perform(post("/api/v1/internal/bookings/reject-timeouts"))
         .andExpect(status().isUnauthorized());
   }
 
   @Test
-  void shouldAllowApiRequestWithJwt() throws Exception {
+  void shouldRejectInternalRequestWithoutRequiredAuthorities() throws Exception {
     mockMvc
         .perform(post("/api/v1/internal/bookings/reject-timeouts").with(jwt()))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void shouldAllowInternalRequestForTrustedService() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/internal/bookings/reject-timeouts")
+                .with(
+                    jwt()
+                        .authorities(
+                            new SimpleGrantedAuthority("ROLE_SERVICE"),
+                            new SimpleGrantedAuthority("SCOPE_internal"))))
         .andExpect(status().isOk());
   }
 }
