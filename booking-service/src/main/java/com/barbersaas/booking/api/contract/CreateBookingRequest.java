@@ -1,8 +1,6 @@
 package com.barbersaas.booking.api.contract;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import lombok.Builder;
@@ -11,11 +9,20 @@ import lombok.Value;
 @Value
 @Builder
 public class CreateBookingRequest {
-  @NotBlank String shopId;
+  @NotBlank
+  @Size(max = 64)
+  @Pattern(regexp = "^[A-Za-z0-9_-]+$")
+  String shopId;
 
-  @NotBlank String barberId;
+  @NotBlank
+  @Size(max = 64)
+  @Pattern(regexp = "^[A-Za-z0-9_-]+$")
+  String barberId;
 
-  @NotBlank String customerId;
+  @NotBlank
+  @Size(max = 64)
+  @Pattern(regexp = "^[A-Za-z0-9_-]+$")
+  String customerId;
 
   @NotNull LocalDate date;
 
@@ -23,7 +30,11 @@ public class CreateBookingRequest {
 
   @NotNull
   @Min(1)
+  @Max(480)
   Integer durationMinutes;
 
-  @NotBlank String serviceCode;
+  @NotBlank
+  @Size(max = 64)
+  @Pattern(regexp = "^[A-Za-z0-9_-]+$")
+  String serviceCode;
 }

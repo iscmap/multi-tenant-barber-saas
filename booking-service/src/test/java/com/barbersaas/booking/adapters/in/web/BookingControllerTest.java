@@ -210,4 +210,36 @@ class BookingControllerTest {
         .andExpect(jsonPath("$.rejectedCount").value(2))
         .andExpect(jsonPath("$.processedAt").exists());
   }
+
+  @Test
+  void shouldRejectOversizedBookingInput() throws Exception {
+    String requestBody =
+        """
+            {
+              "shopId": "shop-1234567890123456789012345678901234567890123456789012345678901234567890",
+              "barberId": "barber-1",
+              "customerId": "customer-1",
+              "date": "2026-04-10",
+              "startTime": "10:00:00",
+              "durationMinutes": 30,
+              "serviceCode": "HAIRCUT"
+            }
+            """;
+
+    mockMvc
+        .perform(
+            post("/api/v1/bookings")
+                .with(
+                    jwt()
+                        .authorities(
+                            new SimpleGrantedAuthority("ROLE_CUSTOMER"),
+                            new SimpleGrantedAuthority("SCOPE_bookings.write")))
+                .header("X-Correlation-Id", "corr-security-1")
+                .header("Idempotency-Key", "idem-security-1")
+                .contentType("application/json")
+                .content(requestBody))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.title").value("Validation error"))
+        .andExpect(jsonPath("$.status").value(400));
+  }
 }
