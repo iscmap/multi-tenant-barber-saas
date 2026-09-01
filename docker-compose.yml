@@ -231,8 +231,20 @@ services:
     depends_on:
       - prometheus
 
+  jenkins:
+    build:
+      context: ./infra/jenkins
+    container_name: barber-jenkins
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_data:/var/jenkins_home
+
 volumes:
   postgres_data:
   localstack_data:
   kafka_data:
   grafana_data:
+  jenkins_data:
