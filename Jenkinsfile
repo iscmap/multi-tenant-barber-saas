@@ -74,6 +74,87 @@ pipeline {
                 sh './gradlew spotlessCheck --no-daemon'
             }
         }
+
+        stage('Integration Tests') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'barber-ci-jwt-secret',
+                        variable: 'JWT_SECRET'
+                    )
+                ]) {
+                    sh '''
+                        set -e
+
+                        echo "Starting integration-test infrastructure..."
+
+                        docker compose \
+                            -p multi-tenant-barber-saas \
+                            up -d postgres localstack kafka
+
+                        wait_for_container() {
+                            container="$1"
+
+                            echo "Waiting for $container..."
+
+                            for i in $(seq 1 60); do
+                                status=$(docker inspect \
+                                    --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+                                    "$container" 2>/dev/null || echo "missing")
+
+                                if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+                                    echo "$container is ready: $status"
+                                    return 0
+                                fi
+
+                                sleep 2
+                            done
+
+                            echo "$container did not become ready."
+                            docker logs "$container" || true
+                            return 1
+                        }
+
+                        wait_for_container barber-postgres
+                        wait_for_container barber-localstack
+                        wait_for_container barber-kafka
+
+                        echo "Running booking-service integration tests..."
+
+                        DB_URL='jdbc:postgresql://postgres:5432/barbersaas?currentSchema=booking' \
+                        DB_USERNAME='postgres' \
+                        DB_PASSWORD='postgres' \
+                        AWS_ENDPOINT='http://localstack:4566' \
+                        AWS_REGION='us-east-1' \
+                        AWS_ACCESS_KEY_ID='test' \
+                        AWS_SECRET_ACCESS_KEY='test' \
+                        KAFKA_BOOTSTRAP_SERVERS='kafka:29092' \
+                        ./gradlew :booking-service:integrationTest --no-daemon
+
+                        echo "Running availability-service integration tests..."
+
+                        DB_URL='jdbc:postgresql://postgres:5432/barbersaas?currentSchema=availability' \
+                        DB_USERNAME='postgres' \
+                        DB_PASSWORD='postgres' \
+                        AWS_ENDPOINT='http://localstack:4566' \
+                        AWS_REGION='us-east-1' \
+                        AWS_ACCESS_KEY_ID='test' \
+                        AWS_SECRET_ACCESS_KEY='test' \
+                        KAFKA_BOOTSTRAP_SERVERS='kafka:29092' \
+                        ./gradlew :availability-service:integrationTest --no-daemon
+                    '''
+                }
+            }
+
+            post {
+                always {
+                    junit(
+                        testResults: '**/build/test-results/integrationTest/*.xml',
+                        allowEmptyResults: true
+                    )
+                }
+            }
+        }
     }
 
     post {

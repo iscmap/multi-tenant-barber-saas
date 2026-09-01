@@ -49,3 +49,18 @@ tasks.register('unitTest', Test) {
 	exclude '**/AvailabilityServiceApplicationTest.class'
 	exclude '**/AvailabilitySqsContextTest.class'
 }
+
+tasks.register('integrationTest', Test) {
+	description = 'Runs tests that require external infrastructure'
+	group = 'verification'
+
+	useJUnitPlatform()
+
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+
+	include '**/AvailabilityServiceApplicationTest.class'
+	include '**/AvailabilitySqsContextTest.class'
+
+	shouldRunAfter tasks.named('unitTest')
+}
