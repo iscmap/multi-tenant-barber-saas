@@ -53,7 +53,7 @@ pipeline {
                 sh '''
                     ./gradlew \
                         :shared-kernel:test \
-                        :booking-service:test \
+                        :booking-service:unitTest \
                         :availability-service:unitTest \
                         --no-daemon
                 '''
