@@ -40,6 +40,34 @@ pipeline {
                 }
             }
         }
+
+        stage('Gradle Build') {
+            steps {
+                sh 'chmod +x gradlew'
+                sh './gradlew clean assemble --no-daemon'
+            }
+        }
+
+        stage('Unit Tests') {
+            steps {
+                sh './gradlew test --no-daemon'
+            }
+
+            post {
+                always {
+                    junit(
+                        testResults: '**/build/test-results/test/*.xml',
+                        allowEmptyResults: true
+                    )
+                }
+            }
+        }
+
+        stage('Formatting') {
+            steps {
+                sh './gradlew spotlessCheck --no-daemon'
+            }
+        }
     }
 
     post {
@@ -48,7 +76,7 @@ pipeline {
         }
 
         failure {
-            echo "Pipeline failed."
+            echo "Pipeline failed because a quality gate did not pass."
         }
 
         cleanup {
