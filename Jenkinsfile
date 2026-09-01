@@ -50,13 +50,19 @@ pipeline {
 
         stage('Unit Tests') {
             steps {
-                sh './gradlew test --no-daemon'
+                sh '''
+                    ./gradlew \
+                        :shared-kernel:test \
+                        :booking-service:test \
+                        :availability-service:unitTest \
+                        --no-daemon
+                '''
             }
 
             post {
                 always {
                     junit(
-                        testResults: '**/build/test-results/test/*.xml',
+                        testResults: '**/build/test-results/*/*.xml',
                         allowEmptyResults: true
                     )
                 }
