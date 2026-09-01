@@ -36,3 +36,16 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+tasks.register('unitTest', Test) {
+	description = 'Runs tests that do not require external infrastructure'
+	group = 'verification'
+
+	useJUnitPlatform()
+
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+
+	exclude '**/AvailabilityServiceApplicationTest.class'
+	exclude '**/AvailabilitySqsContextTest.class'
+}
