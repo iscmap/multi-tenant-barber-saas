@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.barbersaas.availability.adapters.in.web.exception.GlobalExceptionHandler;
 import com.barbersaas.availability.application.port.in.GetBarberAvailabilityUseCase;
 import com.barbersaas.availability.application.port.in.schedule.GetBarberScheduleUseCase;
 import com.barbersaas.availability.application.port.in.validation.ValidateSlotUseCase;
@@ -20,10 +21,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(AvailabilityController.class)
+@Import(GlobalExceptionHandler.class)
 class AvailabilityControllerTest {
 
   @Autowired private MockMvc mockMvc;
@@ -114,5 +117,20 @@ class AvailabilityControllerTest {
         .andExpect(jsonPath("$.shopId").value("shop-1"))
         .andExpect(jsonPath("$.barberId").value("barber-1"))
         .andExpect(jsonPath("$.durationMinutes").value(30));
+  }
+
+  @Test
+  void shouldRejectInvalidAvailabilityPath() throws Exception {
+    mockMvc
+        .perform(
+            get("/api/v1/availability/shop<script>/barber-1/2026-04-10/10:00")
+                .with(
+                    jwt()
+                        .authorities(
+                            new SimpleGrantedAuthority("ROLE_CUSTOMER"),
+                            new SimpleGrantedAuthority("SCOPE_availability.read"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.title").value("Validation error"))
+        .andExpect(jsonPath("$.status").value(400));
   }
 }

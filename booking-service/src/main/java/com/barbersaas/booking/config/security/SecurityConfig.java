@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
 @Configuration
 public class SecurityConfig {
@@ -24,6 +25,18 @@ public class SecurityConfig {
     return http.csrf(csrf -> csrf.disable())
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .headers(
+            headers ->
+                headers
+                    .contentSecurityPolicy(
+                        policy ->
+                            policy.policyDirectives("default-src 'none'; frame-ancestors 'none'"))
+                    .referrerPolicy(
+                        referrer ->
+                            referrer.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                    .permissionsPolicy(
+                        permissions ->
+                            permissions.policy("camera=(), microphone=(), geolocation=()")))
         .authorizeHttpRequests(
             authorization ->
                 authorization

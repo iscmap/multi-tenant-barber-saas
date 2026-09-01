@@ -7,7 +7,12 @@ import com.barbersaas.availability.application.port.in.schedule.GetBarberSchedul
 import com.barbersaas.availability.application.port.in.validation.ValidateSlotUseCase;
 import com.barbersaas.availability.domain.model.BarberAvailability;
 import com.barbersaas.availability.domain.model.BarberSchedule;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.util.Map;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/availability")
+@Validated
 public class AvailabilityController {
 
   private final GetBarberAvailabilityUseCase getBarberAvailabilityUseCase;
@@ -32,10 +38,11 @@ public class AvailabilityController {
 
   @GetMapping("/{shopId}/{barberId}/{date}/{startTime}")
   public GetBarberAvailabilityResponse getAvailability(
-      @PathVariable String shopId,
-      @PathVariable String barberId,
-      @PathVariable String date,
-      @PathVariable String startTime) {
+      @PathVariable @Size(min = 1, max = 64) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String shopId,
+      @PathVariable @Size(min = 1, max = 64) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String barberId,
+      @PathVariable @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$") String date,
+      @PathVariable @Pattern(regexp = "^\\d{2}:\\d{2}$") String startTime) {
+
     BarberAvailability availability =
         getBarberAvailabilityUseCase.getAvailability(shopId, barberId, date, startTime);
 
@@ -51,7 +58,10 @@ public class AvailabilityController {
 
   @GetMapping("/schedule/{shopId}/{barberId}/{date}")
   public GetBarberScheduleResponse getSchedule(
-      @PathVariable String shopId, @PathVariable String barberId, @PathVariable String date) {
+      @PathVariable @Size(min = 1, max = 64) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String shopId,
+      @PathVariable @Size(min = 1, max = 64) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String barberId,
+      @PathVariable @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$") String date) {
+
     BarberSchedule schedule = getBarberScheduleUseCase.getSchedule(shopId, barberId, date);
 
     return GetBarberScheduleResponse.builder()
@@ -66,11 +76,12 @@ public class AvailabilityController {
 
   @GetMapping("/validate/{shopId}/{barberId}/{date}/{startTime}/{durationMinutes}")
   public Map<String, Object> validateSlot(
-      @PathVariable String shopId,
-      @PathVariable String barberId,
-      @PathVariable String date,
-      @PathVariable String startTime,
-      @PathVariable int durationMinutes) {
+      @PathVariable @Size(min = 1, max = 64) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String shopId,
+      @PathVariable @Size(min = 1, max = 64) @Pattern(regexp = "^[A-Za-z0-9_-]+$") String barberId,
+      @PathVariable @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$") String date,
+      @PathVariable @Pattern(regexp = "^\\d{2}:\\d{2}$") String startTime,
+      @PathVariable @Min(1) @Max(480) int durationMinutes) {
+
     validateSlotUseCase.validateSlot(shopId, barberId, date, startTime, durationMinutes);
 
     return Map.of(

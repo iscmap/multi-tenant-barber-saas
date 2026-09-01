@@ -13,13 +13,17 @@ import com.barbersaas.booking.application.port.in.timeout.RejectTimedOutBookings
 import com.barbersaas.booking.application.query.GetBookingQuery;
 import com.barbersaas.booking.domain.model.Booking;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1")
+@Validated
 public class BookingController {
 
   private final CreateBookingUseCase createBookingUseCase;
@@ -41,7 +45,10 @@ public class BookingController {
   @PostMapping("/bookings")
   @ResponseStatus(HttpStatus.CREATED)
   public CreateBookingResponse createBooking(
-      @RequestHeader(value = "Idempotency-Key", required = true) String idempotencyKey,
+      @RequestHeader(value = "Idempotency-Key", required = true)
+          @Size(min = 1, max = 128)
+          @Pattern(regexp = "^[A-Za-z0-9._:-]+$")
+          String idempotencyKey,
       @Valid @RequestBody CreateBookingRequest request) {
     CreateBookingCommand createBookingCommand = bookingApiMapper.toCommand(request);
 
@@ -56,7 +63,9 @@ public class BookingController {
   }
 
   @GetMapping("/bookings/{bookingId}")
-  public GetBookingResponse getBooking(@PathVariable String bookingId) {
+  public GetBookingResponse getBooking(
+      @PathVariable @Size(min = 1, max = 64) @Pattern(regexp = "^[A-Za-z0-9_-]+$")
+          String bookingId) {
     GetBookingQuery query = GetBookingQuery.builder().bookingId(bookingId).build();
 
     Booking booking = getBookingUseCase.getBooking(query);
