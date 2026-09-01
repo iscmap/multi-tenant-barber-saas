@@ -499,7 +499,7 @@ Remove-Item `
     -ErrorAction SilentlyContinue
 
 Write-Host ""
-Write-Host "19. PostgreSQL secret"
+Write-Host "19. Application secrets"
 
 $ExistingSecret = kubectl get secret barber-saas-db-secret `
     --ignore-not-found `
@@ -523,6 +523,42 @@ if ([string]::IsNullOrWhiteSpace($ExistingSecret)) {
 }
 else {
     Write-Host "Database secret already exists."
+}
+
+$ExistingSecuritySecret = kubectl get secret barber-saas-security `
+    --ignore-not-found `
+    -o name
+
+if ([string]::IsNullOrWhiteSpace($ExistingSecuritySecret)) {
+
+    $JwtBytes = New-Object byte[] 48
+
+    $JwtRng =
+        [System.Security.Cryptography.RandomNumberGenerator]::Create()
+
+    try {
+        $JwtRng.GetBytes($JwtBytes)
+    }
+    finally {
+        $JwtRng.Dispose()
+    }
+
+    $JwtSecret =
+        [Convert]::ToBase64String($JwtBytes)
+
+    Invoke-CheckedCommand `
+        {
+            kubectl create secret generic barber-saas-security `
+                "--from-literal=JWT_SECRET=$JwtSecret"
+        } `
+        "Failed to create security secret."
+
+    $JwtSecret = $null
+
+    Write-Host "Security secret created."
+}
+else {
+    Write-Host "Security secret already exists."
 }
 
 Write-Host ""

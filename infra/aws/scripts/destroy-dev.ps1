@@ -276,6 +276,10 @@ if (Test-EksClusterExists) {
             --ignore-not-found=true `
             2>$null
 
+        kubectl delete secret barber-saas-security `
+            --ignore-not-found=true `
+            2>$null
+
         kubectl delete -f `
             (Join-Path $KubernetesAws "configmap.yaml") `
             --ignore-not-found=true `

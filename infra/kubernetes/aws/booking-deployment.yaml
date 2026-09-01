@@ -49,6 +49,9 @@ spec:
             - secretRef:
                 name: barber-saas-db-secret
 
+            - secretRef:
+                name: barber-saas-security
+
           livenessProbe:
             httpGet:
               path: /livez
