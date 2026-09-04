@@ -78,6 +78,33 @@ Resources:
           Value: !Ref Environment
 
 
+  CloudWatchObservabilityRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-cloudwatch-observability-role"
+
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - pods.eks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+              - sts:TagSession
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+        - Key: Environment
+          Value: !Ref Environment
+
+
   EksCluster:
     Type: AWS::EKS::Cluster
     Properties:
@@ -148,31 +175,160 @@ Resources:
         Project: !Ref ProjectName
         Environment: !Ref Environment
 
-  CloudWatchObservabilityRole:
-    Type: AWS::IAM::Role
+
+  OperationsDashboard:
+    Type: AWS::CloudWatch::Dashboard
     Properties:
-      RoleName: !Sub "${ProjectName}-${Environment}-cloudwatch-observability-role"
+      DashboardName: !Sub "${ProjectName}-${Environment}-operations"
 
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - pods.eks.amazonaws.com
-            Action:
-              - sts:AssumeRole
-              - sts:TagSession
+      DashboardBody: !Sub |
+        {
+          "start": "-PT3H",
+          "periodOverride": "inherit",
+          "widgets": [
+            {
+              "type": "text",
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 2,
+              "properties": {
+                "markdown": "# Barber SaaS — DEV Operations\nEKS cluster: **${ProjectName}-${Environment}**"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 2,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "EKS Node CPU Utilization",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 60,
+                "stat": "Average",
+                "yAxis": {
+                  "left": {
+                    "min": 0,
+                    "max": 100
+                  }
+                },
+                "metrics": [
+                  [
+                    "ContainerInsights",
+                    "node_cpu_utilization",
+                    "ClusterName",
+                    "${ProjectName}-${Environment}"
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 2,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "EKS Node Memory Utilization",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 60,
+                "stat": "Average",
+                "yAxis": {
+                  "left": {
+                    "min": 0,
+                    "max": 100
+                  }
+                },
+                "metrics": [
+                  [
+                    "ContainerInsights",
+                    "node_memory_utilization",
+                    "ClusterName",
+                    "${ProjectName}-${Environment}"
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 8,
+              "width": 12,
+              "height": 5,
+              "properties": {
+                "title": "EKS Worker Nodes",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "period": 60,
+                "stat": "Average",
+                "metrics": [
+                  [
+                    "ContainerInsights",
+                    "cluster_node_count",
+                    "ClusterName",
+                    "${ProjectName}-${Environment}"
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 8,
+              "width": 12,
+              "height": 5,
+              "properties": {
+                "title": "Running Pods — default namespace",
+                "region": "${AWS::Region}",
+                "view": "timeSeries",
+                "period": 60,
+                "stat": "Average",
+                "metrics": [
+                  [
+                    "ContainerInsights",
+                    "namespace_number_of_running_pods",
+                    "Namespace",
+                    "default",
+                    "ClusterName",
+                    "${ProjectName}-${Environment}"
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "log",
+              "x": 0,
+              "y": 13,
+              "width": 24,
+              "height": 7,
+              "properties": {
+                "title": "Booking + Availability — Recent Logs",
+                "region": "${AWS::Region}",
+                "view": "table",
+                "query": "SOURCE '/aws/containerinsights/${ProjectName}-${Environment}/application' | fields @timestamp, @message, @logStream\n| filter @message like /booking-service|availability-service/\n| sort @timestamp desc\n| limit 100"
+              }
+            },
+            {
+              "type": "log",
+              "x": 0,
+              "y": 20,
+              "width": 24,
+              "height": 7,
+              "properties": {
+                "title": "Application WARN / ERROR",
+                "region": "${AWS::Region}",
+                "view": "table",
+                "query": "SOURCE '/aws/containerinsights/${ProjectName}-${Environment}/application' | fields @timestamp, @message, @logStream\n| filter @message like /booking-service|availability-service/\n| filter @message like /WARN|ERROR/\n| sort @timestamp desc\n| limit 100"
+              }
+            }
+          ]
+        }
 
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
-
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-
-        - Key: Environment
-          Value: !Ref Environment
 
 Outputs:
 
@@ -181,7 +337,7 @@ Outputs:
     Value: !Ref EksCluster
 
   ClusterArn:
-    Description: Amazon EKS cluster ARN
+    Description: EKS cluster ARN
     Value: !GetAtt EksCluster.Arn
 
   ClusterEndpoint:
@@ -203,3 +359,7 @@ Outputs:
   CloudWatchObservabilityRoleArn:
     Description: IAM role for CloudWatch Observability EKS add-on
     Value: !GetAtt CloudWatchObservabilityRole.Arn
+
+  OperationsDashboardName:
+    Description: CloudWatch operations dashboard name
+    Value: !Ref OperationsDashboard
