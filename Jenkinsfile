@@ -279,59 +279,257 @@ pipeline {
 
             steps {
                 sh '''
-                    set -e
+            set -e
 
-                    echo "Configuring access to EKS..."
+            echo "Configuring access to EKS..."
 
-                    aws eks update-kubeconfig \
-                        --name "$EKS_CLUSTER" \
-                        --region "$AWS_REGION"
+            aws eks update-kubeconfig \
+                --name "$EKS_CLUSTER" \
+                --region "$AWS_REGION"
 
-                    echo "Verifying EKS connectivity..."
+            echo "Verifying EKS connectivity..."
 
-                    kubectl get nodes
+            kubectl get nodes
 
-                    echo "Resolving ECR registry..."
+            echo "Resolving ECR registry..."
 
-                    AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
-                        --query Account \
-                        --output text)
+            AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+                --query Account \
+                --output text)
 
-                    ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+            ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-                    BOOKING_IMAGE="${ECR_REGISTRY}/${BOOKING_ECR_REPOSITORY}:${PIPELINE_VERSION}"
-                    AVAILABILITY_IMAGE="${ECR_REGISTRY}/${AVAILABILITY_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+            BOOKING_IMAGE="${ECR_REGISTRY}/${BOOKING_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+            AVAILABILITY_IMAGE="${ECR_REGISTRY}/${AVAILABILITY_ECR_REPOSITORY}:${PIPELINE_VERSION}"
 
-                    echo "Deploying booking-service version ${PIPELINE_VERSION}..."
+            echo "Deploying booking-service version ${PIPELINE_VERSION}..."
 
-                    kubectl set image \
-                        deployment/booking-service \
-                        booking-service="$BOOKING_IMAGE" \
-                        --namespace "$K8S_NAMESPACE"
+            kubectl set image \
+                deployment/booking-service \
+                booking-service="$BOOKING_IMAGE" \
+                --namespace "$K8S_NAMESPACE"
 
-                    echo "Deploying availability-service version ${PIPELINE_VERSION}..."
+            echo "Deploying availability-service version ${PIPELINE_VERSION}..."
 
-                    kubectl set image \
-                        deployment/availability-service \
-                        availability-service="$AVAILABILITY_IMAGE" \
-                        --namespace "$K8S_NAMESPACE"
+            kubectl set image \
+                deployment/availability-service \
+                availability-service="$AVAILABILITY_IMAGE" \
+                --namespace "$K8S_NAMESPACE"
 
-                    echo "Waiting for booking-service rollout..."
+            echo "Waiting for booking-service rollout..."
 
-                    kubectl rollout status \
-                        deployment/booking-service \
-                        --namespace "$K8S_NAMESPACE" \
-                        --timeout=240s
+            kubectl rollout status \
+                deployment/booking-service \
+                --namespace "$K8S_NAMESPACE" \
+                --timeout=240s
 
-                    echo "Waiting for availability-service rollout..."
+            echo "Waiting for availability-service rollout..."
 
-                    kubectl rollout status \
-                        deployment/availability-service \
-                        --namespace "$K8S_NAMESPACE" \
-                        --timeout=240s
+            kubectl rollout status \
+                deployment/availability-service \
+                --namespace "$K8S_NAMESPACE" \
+                --timeout=240s
 
-                    echo "EKS deployment completed successfully."
-                '''
+            echo "EKS deployment completed successfully."
+        '''
+            }
+
+            post {
+                failure {
+                    sh '''
+                echo "Deployment failed. Rolling back..."
+
+                kubectl rollout undo \
+                    deployment/booking-service \
+                    --namespace "$K8S_NAMESPACE" \
+                    || true
+
+                kubectl rollout undo \
+                    deployment/availability-service \
+                    --namespace "$K8S_NAMESPACE" \
+                    || true
+
+                echo "Waiting for rollback..."
+
+                kubectl rollout status \
+                    deployment/booking-service \
+                    --namespace "$K8S_NAMESPACE" \
+                    --timeout=240s \
+                    || true
+
+                kubectl rollout status \
+                    deployment/availability-service \
+                    --namespace "$K8S_NAMESPACE" \
+                    --timeout=240s \
+                    || true
+
+                echo "Rollback attempt completed."
+            '''
+                }
+            }
+        }
+
+        stage('Deployment Verification') {
+            when {
+                branch 'develop'
+            }
+
+            steps {
+                sh '''
+            set -e
+
+            echo "Resolving expected images..."
+
+            AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+                --query Account \
+                --output text)
+
+            ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+            EXPECTED_BOOKING_IMAGE="${ECR_REGISTRY}/${BOOKING_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+            EXPECTED_AVAILABILITY_IMAGE="${ECR_REGISTRY}/${AVAILABILITY_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+
+            echo "Reading deployed images..."
+
+            ACTUAL_BOOKING_IMAGE=$(kubectl get deployment booking-service \
+                --namespace "$K8S_NAMESPACE" \
+                -o jsonpath='{.spec.template.spec.containers[?(@.name=="booking-service")].image}')
+
+            ACTUAL_AVAILABILITY_IMAGE=$(kubectl get deployment availability-service \
+                --namespace "$K8S_NAMESPACE" \
+                -o jsonpath='{.spec.template.spec.containers[?(@.name=="availability-service")].image}')
+
+            echo "Verifying booking-service image..."
+
+            if [ "$ACTUAL_BOOKING_IMAGE" != "$EXPECTED_BOOKING_IMAGE" ]; then
+                echo "Unexpected booking-service image."
+                echo "Expected: $EXPECTED_BOOKING_IMAGE"
+                echo "Actual:   $ACTUAL_BOOKING_IMAGE"
+                exit 1
+            fi
+
+            echo "Verifying availability-service image..."
+
+            if [ "$ACTUAL_AVAILABILITY_IMAGE" != "$EXPECTED_AVAILABILITY_IMAGE" ]; then
+                echo "Unexpected availability-service image."
+                echo "Expected: $EXPECTED_AVAILABILITY_IMAGE"
+                echo "Actual:   $ACTUAL_AVAILABILITY_IMAGE"
+                exit 1
+            fi
+
+            echo "Verifying pod readiness..."
+
+            kubectl wait \
+                --for=condition=Ready \
+                pod \
+                -l app=booking-service \
+                --namespace "$K8S_NAMESPACE" \
+                --timeout=120s
+
+            kubectl wait \
+                --for=condition=Ready \
+                pod \
+                -l app=availability-service \
+                --namespace "$K8S_NAMESPACE" \
+                --timeout=120s
+
+            BOOKING_PF_PID=""
+            AVAILABILITY_PF_PID=""
+
+            cleanup_port_forward() {
+                if [ -n "$BOOKING_PF_PID" ]; then
+                    kill "$BOOKING_PF_PID" 2>/dev/null || true
+                fi
+
+                if [ -n "$AVAILABILITY_PF_PID" ]; then
+                    kill "$AVAILABILITY_PF_PID" 2>/dev/null || true
+                fi
+            }
+
+            trap cleanup_port_forward EXIT
+
+            echo "Starting booking-service port-forward..."
+
+            kubectl port-forward \
+                deployment/booking-service \
+                18081:8081 \
+                --namespace "$K8S_NAMESPACE" \
+                > /tmp/booking-port-forward.log 2>&1 &
+
+            BOOKING_PF_PID=$!
+
+            echo "Starting availability-service port-forward..."
+
+            kubectl port-forward \
+                deployment/availability-service \
+                18082:8082 \
+                --namespace "$K8S_NAMESPACE" \
+                > /tmp/availability-port-forward.log 2>&1 &
+
+            AVAILABILITY_PF_PID=$!
+
+            echo "Waiting for port-forwards..."
+
+            sleep 5
+
+            echo "Calling booking-service readiness endpoint..."
+
+            curl \
+                --fail \
+                --silent \
+                --show-error \
+                http://127.0.0.1:18081/readyz \
+                > /dev/null
+
+            echo "booking-service readiness verification passed."
+
+            echo "Calling availability-service readiness endpoint..."
+
+            curl \
+                --fail \
+                --silent \
+                --show-error \
+                http://127.0.0.1:18082/readyz \
+                > /dev/null
+
+            echo "availability-service readiness verification passed."
+
+            echo "Deployment verification completed successfully."
+        '''
+            }
+
+            post {
+                failure {
+                    sh '''
+                echo "Deployment verification failed. Rolling back..."
+
+                kubectl rollout undo \
+                    deployment/booking-service \
+                    --namespace "$K8S_NAMESPACE" \
+                    || true
+
+                kubectl rollout undo \
+                    deployment/availability-service \
+                    --namespace "$K8S_NAMESPACE" \
+                    || true
+
+                echo "Waiting for rollback..."
+
+                kubectl rollout status \
+                    deployment/booking-service \
+                    --namespace "$K8S_NAMESPACE" \
+                    --timeout=240s \
+                    || true
+
+                kubectl rollout status \
+                    deployment/availability-service \
+                    --namespace "$K8S_NAMESPACE" \
+                    --timeout=240s \
+                    || true
+
+                echo "Rollback attempt completed."
+            '''
+                }
             }
         }
     }
