@@ -243,7 +243,7 @@ services:
     volumes:
       - jenkins_data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${USERPROFILE}/.aws:/root/.aws:ro
+      - ${USERPROFILE}/.aws:/root/.aws
 
 volumes:
   postgres_data:
