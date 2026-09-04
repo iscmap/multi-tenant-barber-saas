@@ -21,10 +21,22 @@ RUN apt-get update \
     && apt-get install -y \
         docker-ce-cli \
         docker-compose-plugin \
+    && ARCH="$(uname -m)" \
+    && case "$ARCH" in \
+        x86_64|aarch64) ;; \
+        *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
+       esac \
+    && curl -fsSL \
+        "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" \
+        -o /tmp/awscliv2.zip \
+    && unzip -q /tmp/awscliv2.zip -d /tmp \
+    && /tmp/aws/install \
+    && rm -rf /tmp/aws /tmp/awscliv2.zip \
     && rm -rf /var/lib/apt/lists/*
 
 USER jenkins
 
 COPY --chown=jenkins:jenkins plugins.txt /usr/share/jenkins/ref/plugins.txt
 
-RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt
+RUN jenkins-plugin-cli \
+    --plugin-file /usr/share/jenkins/ref/plugins.txt
