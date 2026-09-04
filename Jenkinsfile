@@ -11,6 +11,10 @@ pipeline {
         PROJECT_NAME = 'barber-saas'
         RELEASE_BRANCH = 'main'
         INTEGRATION_BRANCH = 'develop'
+
+        AWS_REGION = 'us-east-1'
+        BOOKING_ECR_REPOSITORY = 'barber-saas/dev/booking-service'
+        AVAILABILITY_ECR_REPOSITORY = 'barber-saas/dev/availability-service'
     }
 
     stages {
@@ -155,6 +159,125 @@ pipeline {
                 }
             }
         }
+
+        stage('Docker Build') {
+            steps {
+                withCredentials([
+                        string(
+                                credentialsId: 'barber-ci-jwt-secret',
+                                variable: 'JWT_SECRET'
+                        )
+                ]) {
+                    sh '''
+                set -e
+
+                echo "Building application Docker images..."
+
+                docker compose build \
+                    booking-service \
+                    availability-service
+
+                docker image inspect \
+                    barber-booking-service:8.4 \
+                    > /dev/null
+
+                docker image inspect \
+                    barber-availability-service:8.4 \
+                    > /dev/null
+
+                echo "Docker images built successfully."
+            '''
+                }
+            }
+        }
+
+        stage('ECR Publish') {
+            when {
+                anyOf {
+                    branch 'develop'
+                    branch 'main'
+                    buildingTag()
+                }
+            }
+
+            steps {
+                withCredentials([
+                        string(
+                                credentialsId: 'barber-aws-access-key-id',
+                                variable: 'AWS_ACCESS_KEY_ID'
+                        ),
+                        string(
+                                credentialsId: 'barber-aws-secret-access-key',
+                                variable: 'AWS_SECRET_ACCESS_KEY'
+                        ),
+                        string(
+                                credentialsId: 'barber-aws-session-token',
+                                variable: 'AWS_SESSION_TOKEN'
+                        )
+                ]) {
+                    sh '''
+                set -e
+
+                echo "Validating AWS authentication..."
+
+                AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+                    --query Account \
+                    --output text)
+
+                ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+                BOOKING_IMAGE="${ECR_REGISTRY}/${BOOKING_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+                AVAILABILITY_IMAGE="${ECR_REGISTRY}/${AVAILABILITY_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+
+                echo "Authenticating Docker with ECR..."
+
+                aws ecr get-login-password \
+                    --region "$AWS_REGION" |
+                    docker login \
+                        --username AWS \
+                        --password-stdin \
+                        "$ECR_REGISTRY"
+
+                echo "Tagging images..."
+
+                docker tag \
+                    barber-booking-service:8.4 \
+                    "$BOOKING_IMAGE"
+
+                docker tag \
+                    barber-availability-service:8.4 \
+                    "$AVAILABILITY_IMAGE"
+
+                echo "Pushing booking-service..."
+
+                docker push "$BOOKING_IMAGE"
+
+                echo "Pushing availability-service..."
+
+                docker push "$AVAILABILITY_IMAGE"
+
+                echo "Verifying ECR images..."
+
+                aws ecr describe-images \
+                    --repository-name "$BOOKING_ECR_REPOSITORY" \
+                    --image-ids "imageTag=$PIPELINE_VERSION" \
+                    --region "$AWS_REGION" \
+                    > /dev/null
+
+                aws ecr describe-images \
+                    --repository-name "$AVAILABILITY_ECR_REPOSITORY" \
+                    --image-ids "imageTag=$PIPELINE_VERSION" \
+                    --region "$AWS_REGION" \
+                    > /dev/null
+
+                docker logout "$ECR_REGISTRY"
+
+                echo "ECR publish completed successfully."
+            '''
+                }
+            }
+        }
+        
     }
 
     post {
