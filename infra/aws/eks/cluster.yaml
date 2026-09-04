@@ -148,6 +148,31 @@ Resources:
         Project: !Ref ProjectName
         Environment: !Ref Environment
 
+  CloudWatchObservabilityRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-cloudwatch-observability-role"
+
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - pods.eks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+              - sts:TagSession
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+        - Key: Environment
+          Value: !Ref Environment
 
 Outputs:
 
@@ -174,3 +199,7 @@ Outputs:
   NodeGroupName:
     Description: EKS managed node group
     Value: !Ref EksNodeGroup
+
+  CloudWatchObservabilityRoleArn:
+    Description: IAM role for CloudWatch Observability EKS add-on
+    Value: !GetAtt CloudWatchObservabilityRole.Arn

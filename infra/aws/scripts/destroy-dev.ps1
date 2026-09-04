@@ -12,12 +12,14 @@ $NetworkStack = "barber-saas-dev-network"
 $EcrStack = "barber-saas-dev-ecr"
 $EksStack = "barber-saas-dev-eks"
 $ApplicationStack = "barber-saas-dev-application"
+
 $ClusterName = "barber-saas-dev"
 
 $BookingRepository = "barber-saas/dev/booking-service"
 $AvailabilityRepository = "barber-saas/dev/availability-service"
 
 $KubernetesAws = Join-Path $ProjectRoot "infra\kubernetes\aws"
+
 
 function Invoke-AwsSafe {
     param(
@@ -36,6 +38,7 @@ function Invoke-AwsSafe {
     return $ExitCode
 }
 
+
 function Test-StackExists {
     param([string]$StackName)
 
@@ -50,6 +53,7 @@ function Test-StackExists {
     return $ExitCode -eq 0
 }
 
+
 function Test-EksClusterExists {
 
     $ExitCode = Invoke-AwsSafe {
@@ -62,6 +66,7 @@ function Test-EksClusterExists {
 
     return $ExitCode -eq 0
 }
+
 
 function Test-EksAddonExists {
     param([string]$AddonName)
@@ -81,6 +86,7 @@ function Test-EksAddonExists {
 
     return $ExitCode -eq 0
 }
+
 
 function Delete-Stack {
     param([string]$StackName)
@@ -113,6 +119,7 @@ function Delete-Stack {
     Write-Host "$StackName deleted."
 }
 
+
 function Test-EcrRepositoryExists {
     param([string]$RepositoryName)
 
@@ -126,6 +133,7 @@ function Test-EcrRepositoryExists {
 
     return $ExitCode -eq 0
 }
+
 
 function Remove-AllEcrImages {
     param([string]$RepositoryName)
@@ -197,6 +205,28 @@ function Remove-AllEcrImages {
     Write-Host "$RepositoryName emptied."
 }
 
+
+function Test-CloudWatchLogGroupExists {
+    param([string]$LogGroupName)
+
+    $LogGroup = aws logs describe-log-groups `
+        --log-group-name-prefix $LogGroupName `
+        --query "logGroups[?logGroupName=='$LogGroupName'].logGroupName | [0]" `
+        --output text `
+        --region $AwsRegion `
+        --profile $AwsProfile
+
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+
+    return (
+        -not [string]::IsNullOrWhiteSpace($LogGroup) -and
+        $LogGroup -ne "None"
+    )
+}
+
+
 Write-Host ""
 Write-Host "=== Barber SaaS DEV Environment Destruction ==="
 Write-Host ""
@@ -204,6 +234,8 @@ Write-Host ""
 Write-Host "This will delete:"
 Write-Host "- Kubernetes workloads"
 Write-Host "- PostgreSQL and Kafka running inside EKS"
+Write-Host "- CloudWatch Observability add-on"
+Write-Host "- CloudWatch Container Insights log groups"
 Write-Host "- EKS cluster and node group"
 Write-Host "- EKS Pod Identity addon"
 Write-Host "- SNS / SQS / DynamoDB application resources"
@@ -223,6 +255,7 @@ if (-not $Force) {
     }
 }
 
+
 $env:AWS_PROFILE = $AwsProfile
 $env:AWS_REGION = $AwsRegion
 
@@ -233,6 +266,7 @@ aws sts get-caller-identity `
 if ($LASTEXITCODE -ne 0) {
     throw "AWS authentication failed."
 }
+
 
 Write-Host ""
 Write-Host "1. Kubernetes resources"
@@ -295,13 +329,82 @@ else {
     Write-Host "EKS cluster does not exist."
 }
 
+
 Write-Host ""
-Write-Host "2. Application AWS resources"
+Write-Host "2. CloudWatch Observability"
+
+$CloudWatchAddonName = "amazon-cloudwatch-observability"
+
+if (Test-EksAddonExists $CloudWatchAddonName) {
+
+    Write-Host "Deleting CloudWatch Observability add-on..."
+
+    aws eks delete-addon `
+        --cluster-name $ClusterName `
+        --addon-name $CloudWatchAddonName `
+        --region $AwsRegion `
+        --profile $AwsProfile `
+        *> $null
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to start deletion of CloudWatch Observability add-on."
+    }
+
+    Write-Host "Waiting for CloudWatch Observability add-on deletion..."
+
+    do {
+        Start-Sleep -Seconds 10
+
+        $CloudWatchAddonStillExists =
+            Test-EksAddonExists $CloudWatchAddonName
+    }
+    while ($CloudWatchAddonStillExists)
+
+    Write-Host "CloudWatch Observability add-on deleted."
+}
+else {
+    Write-Host "CloudWatch Observability add-on does not exist."
+}
+
+
+Write-Host ""
+Write-Host "3. CloudWatch log groups"
+
+$CloudWatchLogGroups = @(
+    "/aws/containerinsights/$ClusterName/application",
+    "/aws/containerinsights/$ClusterName/host",
+    "/aws/containerinsights/$ClusterName/dataplane"
+)
+
+foreach ($LogGroup in $CloudWatchLogGroups) {
+
+    if (Test-CloudWatchLogGroupExists $LogGroup) {
+
+        Write-Host "Deleting CloudWatch log group: $LogGroup"
+
+        aws logs delete-log-group `
+            --log-group-name $LogGroup `
+            --region $AwsRegion `
+            --profile $AwsProfile
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to delete CloudWatch log group $LogGroup."
+        }
+    }
+    else {
+        Write-Host "CloudWatch log group does not exist: $LogGroup"
+    }
+}
+
+
+Write-Host ""
+Write-Host "4. Application AWS resources"
 
 Delete-Stack $ApplicationStack
 
+
 Write-Host ""
-Write-Host "3. Pod Identity addon"
+Write-Host "5. Pod Identity addon"
 
 $AddonName = "eks-pod-identity-agent"
 
@@ -332,26 +435,30 @@ else {
     Write-Host "Pod Identity addon does not exist."
 }
 
+
 Write-Host ""
-Write-Host "4. EKS"
+Write-Host "6. EKS"
 
 Delete-Stack $EksStack
 
+
 Write-Host ""
-Write-Host "5. Network"
+Write-Host "7. Network"
 
 Delete-Stack $NetworkStack
 
+
 Write-Host ""
-Write-Host "6. ECR"
+Write-Host "8. ECR"
 
 Remove-AllEcrImages $BookingRepository
 Remove-AllEcrImages $AvailabilityRepository
 
 Delete-Stack $EcrStack
 
+
 Write-Host ""
-Write-Host "7. Verify runtime resources"
+Write-Host "9. Verify runtime resources"
 
 if (Test-EksClusterExists) {
     Write-Warning "EKS cluster still exists."
@@ -388,11 +495,14 @@ else {
     Write-Host "ECR stack deleted."
 }
 
+
 Write-Host ""
-Write-Host "8. Final billable resource check"
+Write-Host "10. Final billable resource check"
+
 
 Write-Host ""
 Write-Host "NAT Gateways:"
+
 aws ec2 describe-nat-gateways `
     --filter "Name=state,Values=pending,available,deleting" `
     --query "NatGateways[].[NatGatewayId,State,VpcId]" `
@@ -400,8 +510,10 @@ aws ec2 describe-nat-gateways `
     --region $AwsRegion `
     --profile $AwsProfile
 
+
 Write-Host ""
 Write-Host "Running EC2 instances:"
+
 aws ec2 describe-instances `
     --filters "Name=instance-state-name,Values=pending,running" `
     --query "Reservations[].Instances[].[InstanceId,InstanceType,State.Name]" `
@@ -409,22 +521,38 @@ aws ec2 describe-instances `
     --region $AwsRegion `
     --profile $AwsProfile
 
+
 Write-Host ""
 Write-Host "Elastic IP addresses:"
+
 aws ec2 describe-addresses `
     --query "Addresses[].[AllocationId,PublicIp,AssociationId]" `
     --output table `
     --region $AwsRegion `
     --profile $AwsProfile
 
+
 Write-Host ""
 Write-Host "EBS volumes:"
+
 aws ec2 describe-volumes `
     --filters "Name=status,Values=available,in-use" `
     --query "Volumes[].[VolumeId,Size,VolumeType,State]" `
     --output table `
     --region $AwsRegion `
     --profile $AwsProfile
+
+
+Write-Host ""
+Write-Host "CloudWatch Container Insights log groups:"
+
+aws logs describe-log-groups `
+    --log-group-name-prefix "/aws/containerinsights/$ClusterName" `
+    --query "logGroups[].logGroupName" `
+    --output table `
+    --region $AwsRegion `
+    --profile $AwsProfile
+
 
 Write-Host ""
 Write-Host "DEV environment fully removed."

@@ -27,6 +27,7 @@ $KubernetesAws = Join-Path $ProjectRoot "infra\kubernetes\aws"
 $BookingRepository = "barber-saas/dev/booking-service"
 $AvailabilityRepository = "barber-saas/dev/availability-service"
 
+
 function Invoke-CheckedCommand {
     param(
         [scriptblock]$Command,
@@ -39,6 +40,7 @@ function Invoke-CheckedCommand {
         throw $ErrorMessage
     }
 }
+
 
 function Invoke-AwsSafe {
     param(
@@ -57,6 +59,7 @@ function Invoke-AwsSafe {
     return $ExitCode
 }
 
+
 function Test-StackExists {
     param([string]$StackName)
 
@@ -70,6 +73,7 @@ function Test-StackExists {
 
     return $ExitCode -eq 0
 }
+
 
 function Deploy-Stack {
     param(
@@ -113,6 +117,7 @@ function Deploy-Stack {
     }
 }
 
+
 function Get-StackOutput {
     param(
         [string]$StackName,
@@ -137,6 +142,7 @@ function Get-StackOutput {
     return $Value
 }
 
+
 Write-Host ""
 Write-Host "=== Barber SaaS DEV Environment Creation ==="
 Write-Host ""
@@ -146,6 +152,7 @@ $env:AWS_REGION = $AwsRegion
 
 Set-Location $ProjectRoot
 
+
 Invoke-CheckedCommand `
     {
         aws sts get-caller-identity `
@@ -153,6 +160,7 @@ Invoke-CheckedCommand `
             *> $null
     } `
     "AWS authentication failed."
+
 
 Write-Host ""
 Write-Host "1. Network"
@@ -166,6 +174,7 @@ if (-not (Test-StackExists $NetworkStack)) {
 else {
     Write-Host "$NetworkStack already exists."
 }
+
 
 Write-Host ""
 Write-Host "2. Read network outputs"
@@ -181,6 +190,7 @@ $PrivateSubnet2Id = Get-StackOutput `
 Write-Host "PrivateSubnet1Id: $PrivateSubnet1Id"
 Write-Host "PrivateSubnet2Id: $PrivateSubnet2Id"
 
+
 Write-Host ""
 Write-Host "3. ECR"
 
@@ -193,6 +203,7 @@ if (-not (Test-StackExists $EcrStack)) {
 else {
     Write-Host "$EcrStack already exists."
 }
+
 
 Write-Host ""
 Write-Host "4. ECR lifecycle policies"
@@ -221,6 +232,7 @@ if (Test-Path $EcrLifecyclePolicy) {
         } `
         "Failed to configure availability-service ECR lifecycle policy."
 }
+
 
 Write-Host ""
 Write-Host "5. Get ECR repository URIs"
@@ -253,6 +265,7 @@ Write-Host $BookingEcr
 Write-Host "Availability ECR:"
 Write-Host $AvailabilityEcr
 
+
 Write-Host ""
 Write-Host "6. Authenticate Docker with ECR"
 
@@ -275,6 +288,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Docker ECR authentication failed."
 }
 
+
 Write-Host ""
 Write-Host "7. Build application images"
 
@@ -283,6 +297,7 @@ Invoke-CheckedCommand `
         docker compose build booking-service availability-service
     } `
     "Docker build failed."
+
 
 Write-Host ""
 Write-Host "8. Tag application images"
@@ -303,6 +318,7 @@ Invoke-CheckedCommand `
     } `
     "Failed to tag availability-service image."
 
+
 Write-Host ""
 Write-Host "9. Push application images"
 
@@ -317,6 +333,7 @@ Invoke-CheckedCommand `
         docker push "${AvailabilityEcr}:$ImageTag"
     } `
     "Failed to push availability-service image."
+
 
 Write-Host ""
 Write-Host "10. Verify ECR images"
@@ -343,6 +360,7 @@ Invoke-CheckedCommand `
     } `
     "Availability image $ImageTag was not found in ECR."
 
+
 Write-Host ""
 Write-Host "11. EKS"
 
@@ -366,8 +384,25 @@ if (-not (Test-StackExists $EksStack)) {
         "Failed to deploy $EksStack."
 }
 else {
-    Write-Host "$EksStack already exists."
+
+    Write-Host "Updating $EksStack..."
+
+    Invoke-CheckedCommand `
+        {
+            aws cloudformation deploy `
+                --stack-name $EksStack `
+                --template-file $EksTemplate `
+                --capabilities CAPABILITY_NAMED_IAM `
+                --parameter-overrides `
+                    PrivateSubnet1Id=$PrivateSubnet1Id `
+                    PrivateSubnet2Id=$PrivateSubnet2Id `
+                --region $AwsRegion `
+                --profile $AwsProfile `
+                --no-fail-on-empty-changeset
+        } `
+        "Failed to update $EksStack."
 }
+
 
 Write-Host ""
 Write-Host "12. Update kubeconfig"
@@ -386,6 +421,7 @@ Invoke-CheckedCommand `
         kubectl get nodes
     } `
     "Unable to communicate with EKS."
+
 
 Write-Host ""
 Write-Host "13. EKS Pod Identity Agent"
@@ -427,6 +463,159 @@ Invoke-CheckedCommand `
     } `
     "Pod Identity addon did not become active."
 
+
+Write-Host ""
+Write-Host "13.1. CloudWatch Observability"
+
+$CloudWatchObservabilityRoleArn = Get-StackOutput `
+    -StackName $EksStack `
+    -OutputKey "CloudWatchObservabilityRoleArn"
+
+Write-Host "CloudWatch role:"
+Write-Host $CloudWatchObservabilityRoleArn
+
+$CloudWatchAddonName = "amazon-cloudwatch-observability"
+
+$CloudWatchAddonExitCode = Invoke-AwsSafe {
+    aws eks describe-addon `
+        --cluster-name $ClusterName `
+        --addon-name $CloudWatchAddonName `
+        --region $AwsRegion `
+        --profile $AwsProfile `
+        *> $null
+}
+
+$CloudWatchConfigurationFile = Join-Path `
+    $env:TEMP `
+    ("barber-cloudwatch-" + [guid]::NewGuid().ToString("N") + ".yaml")
+
+@"
+manager:
+  applicationSignals:
+    autoMonitor:
+      monitorAllServices: false
+"@ |
+Set-Content `
+    -Path $CloudWatchConfigurationFile `
+    -Encoding ascii
+
+try {
+
+    if ($CloudWatchAddonExitCode -ne 0) {
+
+        Write-Host "Creating CloudWatch Observability add-on..."
+
+        Invoke-CheckedCommand `
+            {
+                aws eks create-addon `
+                    --cluster-name $ClusterName `
+                    --addon-name $CloudWatchAddonName `
+                    --pod-identity-associations `
+                        "serviceAccount=cloudwatch-agent,roleArn=$CloudWatchObservabilityRoleArn" `
+                    --configuration-values "file://$CloudWatchConfigurationFile" `
+                    --resolve-conflicts OVERWRITE `
+                    --region $AwsRegion `
+                    --profile $AwsProfile
+            } `
+            "Failed to create CloudWatch Observability add-on."
+    }
+    else {
+
+        Write-Host "CloudWatch Observability add-on already exists."
+
+        Invoke-CheckedCommand `
+            {
+                aws eks update-addon `
+                    --cluster-name $ClusterName `
+                    --addon-name $CloudWatchAddonName `
+                    --pod-identity-associations `
+                        "serviceAccount=cloudwatch-agent,roleArn=$CloudWatchObservabilityRoleArn" `
+                    --configuration-values "file://$CloudWatchConfigurationFile" `
+                    --resolve-conflicts OVERWRITE `
+                    --region $AwsRegion `
+                    --profile $AwsProfile `
+                    *> $null
+            } `
+            "Failed to update CloudWatch Observability add-on."
+    }
+}
+finally {
+
+    Remove-Item `
+        $CloudWatchConfigurationFile `
+        -Force `
+        -ErrorAction SilentlyContinue
+}
+
+Write-Host "Waiting for CloudWatch Observability add-on..."
+
+Invoke-CheckedCommand `
+    {
+        aws eks wait addon-active `
+            --cluster-name $ClusterName `
+            --addon-name $CloudWatchAddonName `
+            --region $AwsRegion `
+            --profile $AwsProfile
+    } `
+    "CloudWatch Observability add-on did not become active."
+
+
+Write-Host ""
+Write-Host "13.2. CloudWatch log retention"
+
+$CloudWatchLogGroups = @(
+    "/aws/containerinsights/$ClusterName/application",
+    "/aws/containerinsights/$ClusterName/host",
+    "/aws/containerinsights/$ClusterName/dataplane"
+)
+
+foreach ($LogGroup in $CloudWatchLogGroups) {
+
+    Write-Host "Waiting for log group: $LogGroup"
+
+    $LogGroupFound = $false
+
+    for ($Attempt = 1; $Attempt -le 30; $Attempt++) {
+
+        $ExistingLogGroup = aws logs describe-log-groups `
+            --log-group-name-prefix $LogGroup `
+            --query "logGroups[?logGroupName=='$LogGroup'].logGroupName | [0]" `
+            --output text `
+            --region $AwsRegion `
+            --profile $AwsProfile
+
+        if (
+            $LASTEXITCODE -eq 0 -and
+            -not [string]::IsNullOrWhiteSpace($ExistingLogGroup) -and
+            $ExistingLogGroup -ne "None"
+        ) {
+            $LogGroupFound = $true
+            break
+        }
+
+        Start-Sleep -Seconds 5
+    }
+
+    if ($LogGroupFound) {
+
+        Invoke-CheckedCommand `
+            {
+                aws logs put-retention-policy `
+                    --log-group-name $LogGroup `
+                    --retention-in-days 7 `
+                    --region $AwsRegion `
+                    --profile $AwsProfile
+            } `
+            "Failed to configure retention for $LogGroup."
+
+        Write-Host "7-day retention configured: $LogGroup"
+    }
+    else {
+        Write-Warning "Log group was not created yet: $LogGroup"
+    }
+}
+
+
 Write-Host ""
 Write-Host "14. AWS application resources"
 
@@ -434,6 +623,7 @@ Deploy-Stack `
     -StackName $ApplicationStack `
     -TemplateFile $ApplicationTemplate `
     -Iam
+
 
 Write-Host ""
 Write-Host "15. Read SNS topic ARNs"
@@ -446,6 +636,7 @@ $AvailabilityEventsTopicArn = Get-StackOutput `
     -StackName $ApplicationStack `
     -OutputKey "AvailabilityEventsTopicArn"
 
+
 Write-Host ""
 Write-Host "16. Kubernetes service account"
 
@@ -456,6 +647,7 @@ Invoke-CheckedCommand `
     } `
     "Failed to apply service account."
 
+
 Write-Host ""
 Write-Host "17. Kubernetes ConfigMap"
 
@@ -465,6 +657,7 @@ Invoke-CheckedCommand `
             (Join-Path $KubernetesAws "configmap.yaml")
     } `
     "Failed to apply ConfigMap."
+
 
 Write-Host ""
 Write-Host "18. Patch SNS ARNs"
@@ -498,6 +691,7 @@ Remove-Item `
     -Force `
     -ErrorAction SilentlyContinue
 
+
 Write-Host ""
 Write-Host "19. Application secrets"
 
@@ -524,6 +718,7 @@ if ([string]::IsNullOrWhiteSpace($ExistingSecret)) {
 else {
     Write-Host "Database secret already exists."
 }
+
 
 $ExistingSecuritySecret = kubectl get secret barber-saas-security `
     --ignore-not-found `
@@ -561,6 +756,7 @@ else {
     Write-Host "Security secret already exists."
 }
 
+
 Write-Host ""
 Write-Host "20. PostgreSQL"
 
@@ -578,6 +774,7 @@ Invoke-CheckedCommand `
     } `
     "PostgreSQL rollout failed."
 
+
 Write-Host ""
 Write-Host "21. Kafka"
 
@@ -594,6 +791,7 @@ Invoke-CheckedCommand `
             --timeout=180s
     } `
     "Kafka rollout failed."
+
 
 Write-Host ""
 Write-Host "22. Kafka topic initialization"
@@ -618,6 +816,7 @@ Invoke-CheckedCommand `
     } `
     "Kafka initialization failed."
 
+
 Write-Host ""
 Write-Host "23. Deploy booking-service"
 
@@ -634,6 +833,7 @@ Invoke-CheckedCommand `
             booking-service="${BookingEcr}:$ImageTag"
     } `
     "Failed to set booking-service image."
+
 
 Write-Host ""
 Write-Host "24. Deploy availability-service"
@@ -652,6 +852,7 @@ Invoke-CheckedCommand `
     } `
     "Failed to set availability-service image."
 
+
 Write-Host ""
 Write-Host "25. Wait for application services"
 
@@ -669,21 +870,25 @@ Invoke-CheckedCommand `
     } `
     "availability-service rollout failed."
 
+
 Write-Host ""
 Write-Host "26. Verify deployed images"
 
 kubectl get deployment booking-service availability-service `
     -o custom-columns=NAME:.metadata.name,IMAGE:.spec.template.spec.containers[0].image
 
+
 Write-Host ""
 Write-Host "27. Verify pods"
 
 kubectl get pods
 
+
 Write-Host ""
 Write-Host "28. Verify services"
 
 kubectl get services
+
 
 Write-Host ""
 Write-Host "DEV environment is ready."
