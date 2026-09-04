@@ -13,6 +13,7 @@ pipeline {
         INTEGRATION_BRANCH = 'develop'
 
         AWS_REGION = 'us-east-1'
+        AWS_PROFILE = 'barber-dev'
 
         BOOKING_ECR_REPOSITORY =
                 'barber-saas/dev/booking-service'
@@ -25,6 +26,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -35,8 +37,8 @@ pipeline {
             steps {
                 script {
                     env.SHORT_COMMIT = sh(
-                        script: 'git rev-parse --short=8 HEAD',
-                        returnStdout: true
+                            script: 'git rev-parse --short=8 HEAD',
+                            returnStdout: true
                     ).trim()
 
                     env.PIPELINE_VERSION = resolvePipelineVersion()
@@ -73,8 +75,8 @@ pipeline {
             post {
                 always {
                     junit(
-                        testResults: '**/build/test-results/*/*.xml',
-                        allowEmptyResults: true
+                            testResults: '**/build/test-results/*/*.xml',
+                            allowEmptyResults: true
                     )
                 }
             }
@@ -89,10 +91,10 @@ pipeline {
         stage('Integration Tests') {
             steps {
                 withCredentials([
-                    string(
-                        credentialsId: 'barber-ci-jwt-secret',
-                        variable: 'JWT_SECRET'
-                    )
+                        string(
+                                credentialsId: 'barber-ci-jwt-secret',
+                                variable: 'JWT_SECRET'
+                        )
                 ]) {
                     sh '''
                         set -e
@@ -160,8 +162,8 @@ pipeline {
             post {
                 always {
                     junit(
-                        testResults: '**/build/test-results/integrationTest/*.xml',
-                        allowEmptyResults: true
+                            testResults: '**/build/test-results/integrationTest/*.xml',
+                            allowEmptyResults: true
                     )
                 }
             }
@@ -176,24 +178,24 @@ pipeline {
                         )
                 ]) {
                     sh '''
-                set -e
+                        set -e
 
-                echo "Building application Docker images..."
+                        echo "Building application Docker images..."
 
-                docker compose build \
-                    booking-service \
-                    availability-service
+                        docker compose build \
+                            booking-service \
+                            availability-service
 
-                docker image inspect \
-                    barber-booking-service:8.4 \
-                    > /dev/null
+                        docker image inspect \
+                            barber-booking-service:8.4 \
+                            > /dev/null
 
-                docker image inspect \
-                    barber-availability-service:8.4 \
-                    > /dev/null
+                        docker image inspect \
+                            barber-availability-service:8.4 \
+                            > /dev/null
 
-                echo "Docker images built successfully."
-            '''
+                        echo "Docker images built successfully."
+                    '''
                 }
             }
         }
@@ -208,80 +210,65 @@ pipeline {
             }
 
             steps {
-                withCredentials([
-                        string(
-                                credentialsId: 'barber-aws-access-key-id',
-                                variable: 'AWS_ACCESS_KEY_ID'
-                        ),
-                        string(
-                                credentialsId: 'barber-aws-secret-access-key',
-                                variable: 'AWS_SECRET_ACCESS_KEY'
-                        ),
-                        string(
-                                credentialsId: 'barber-aws-session-token',
-                                variable: 'AWS_SESSION_TOKEN'
-                        )
-                ]) {
-                    sh '''
-                set -e
+                sh '''
+                    set -e
 
-                echo "Validating AWS authentication..."
+                    echo "Validating AWS authentication..."
 
-                AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
-                    --query Account \
-                    --output text)
+                    AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+                        --query Account \
+                        --output text)
 
-                ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                    ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-                BOOKING_IMAGE="${ECR_REGISTRY}/${BOOKING_ECR_REPOSITORY}:${PIPELINE_VERSION}"
-                AVAILABILITY_IMAGE="${ECR_REGISTRY}/${AVAILABILITY_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+                    BOOKING_IMAGE="${ECR_REGISTRY}/${BOOKING_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+                    AVAILABILITY_IMAGE="${ECR_REGISTRY}/${AVAILABILITY_ECR_REPOSITORY}:${PIPELINE_VERSION}"
 
-                echo "Authenticating Docker with ECR..."
+                    echo "Authenticating Docker with ECR..."
 
-                aws ecr get-login-password \
-                    --region "$AWS_REGION" |
-                    docker login \
-                        --username AWS \
-                        --password-stdin \
-                        "$ECR_REGISTRY"
+                    aws ecr get-login-password \
+                        --region "$AWS_REGION" |
+                        docker login \
+                            --username AWS \
+                            --password-stdin \
+                            "$ECR_REGISTRY"
 
-                echo "Tagging images..."
+                    echo "Tagging images..."
 
-                docker tag \
-                    barber-booking-service:8.4 \
-                    "$BOOKING_IMAGE"
+                    docker tag \
+                        barber-booking-service:8.4 \
+                        "$BOOKING_IMAGE"
 
-                docker tag \
-                    barber-availability-service:8.4 \
-                    "$AVAILABILITY_IMAGE"
+                    docker tag \
+                        barber-availability-service:8.4 \
+                        "$AVAILABILITY_IMAGE"
 
-                echo "Pushing booking-service..."
+                    echo "Pushing booking-service..."
 
-                docker push "$BOOKING_IMAGE"
+                    docker push "$BOOKING_IMAGE"
 
-                echo "Pushing availability-service..."
+                    echo "Pushing availability-service..."
 
-                docker push "$AVAILABILITY_IMAGE"
+                    docker push "$AVAILABILITY_IMAGE"
 
-                echo "Verifying ECR images..."
+                    echo "Verifying ECR images..."
 
-                aws ecr describe-images \
-                    --repository-name "$BOOKING_ECR_REPOSITORY" \
-                    --image-ids "imageTag=$PIPELINE_VERSION" \
-                    --region "$AWS_REGION" \
-                    > /dev/null
+                    aws ecr describe-images \
+                        --repository-name "$BOOKING_ECR_REPOSITORY" \
+                        --image-ids "imageTag=$PIPELINE_VERSION" \
+                        --region "$AWS_REGION" \
+                        > /dev/null
 
-                aws ecr describe-images \
-                    --repository-name "$AVAILABILITY_ECR_REPOSITORY" \
-                    --image-ids "imageTag=$PIPELINE_VERSION" \
-                    --region "$AWS_REGION" \
-                    > /dev/null
+                    aws ecr describe-images \
+                        --repository-name "$AVAILABILITY_ECR_REPOSITORY" \
+                        --image-ids "imageTag=$PIPELINE_VERSION" \
+                        --region "$AWS_REGION" \
+                        > /dev/null
 
-                docker logout "$ECR_REGISTRY"
+                    docker logout "$ECR_REGISTRY"
 
-                echo "ECR publish completed successfully."
-            '''
-                }
+                    echo "ECR publish completed successfully."
+                '''
             }
         }
 
@@ -291,76 +278,60 @@ pipeline {
             }
 
             steps {
-                withCredentials([
-                        string(
-                                credentialsId: 'barber-aws-access-key-id',
-                                variable: 'AWS_ACCESS_KEY_ID'
-                        ),
-                        string(
-                                credentialsId: 'barber-aws-secret-access-key',
-                                variable: 'AWS_SECRET_ACCESS_KEY'
-                        ),
-                        string(
-                                credentialsId: 'barber-aws-session-token',
-                                variable: 'AWS_SESSION_TOKEN'
-                        )
-                ]) {
-                    sh '''
-                set -e
+                sh '''
+                    set -e
 
-                echo "Configuring access to EKS..."
+                    echo "Configuring access to EKS..."
 
-                aws eks update-kubeconfig \
-                    --name "$EKS_CLUSTER" \
-                    --region "$AWS_REGION"
+                    aws eks update-kubeconfig \
+                        --name "$EKS_CLUSTER" \
+                        --region "$AWS_REGION"
 
-                echo "Verifying EKS connectivity..."
+                    echo "Verifying EKS connectivity..."
 
-                kubectl get nodes
+                    kubectl get nodes
 
-                echo "Resolving ECR registry..."
+                    echo "Resolving ECR registry..."
 
-                AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
-                    --query Account \
-                    --output text)
+                    AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+                        --query Account \
+                        --output text)
 
-                ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                    ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-                BOOKING_IMAGE="${ECR_REGISTRY}/${BOOKING_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+                    BOOKING_IMAGE="${ECR_REGISTRY}/${BOOKING_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+                    AVAILABILITY_IMAGE="${ECR_REGISTRY}/${AVAILABILITY_ECR_REPOSITORY}:${PIPELINE_VERSION}"
 
-                AVAILABILITY_IMAGE="${ECR_REGISTRY}/${AVAILABILITY_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+                    echo "Deploying booking-service version ${PIPELINE_VERSION}..."
 
-                echo "Deploying booking-service version ${PIPELINE_VERSION}..."
+                    kubectl set image \
+                        deployment/booking-service \
+                        booking-service="$BOOKING_IMAGE" \
+                        --namespace "$K8S_NAMESPACE"
 
-                kubectl set image \
-                    deployment/booking-service \
-                    booking-service="$BOOKING_IMAGE" \
-                    --namespace "$K8S_NAMESPACE"
+                    echo "Deploying availability-service version ${PIPELINE_VERSION}..."
 
-                echo "Deploying availability-service version ${PIPELINE_VERSION}..."
+                    kubectl set image \
+                        deployment/availability-service \
+                        availability-service="$AVAILABILITY_IMAGE" \
+                        --namespace "$K8S_NAMESPACE"
 
-                kubectl set image \
-                    deployment/availability-service \
-                    availability-service="$AVAILABILITY_IMAGE" \
-                    --namespace "$K8S_NAMESPACE"
+                    echo "Waiting for booking-service rollout..."
 
-                echo "Waiting for booking-service rollout..."
+                    kubectl rollout status \
+                        deployment/booking-service \
+                        --namespace "$K8S_NAMESPACE" \
+                        --timeout=240s
 
-                kubectl rollout status \
-                    deployment/booking-service \
-                    --namespace "$K8S_NAMESPACE" \
-                    --timeout=240s
+                    echo "Waiting for availability-service rollout..."
 
-                echo "Waiting for availability-service rollout..."
+                    kubectl rollout status \
+                        deployment/availability-service \
+                        --namespace "$K8S_NAMESPACE" \
+                        --timeout=240s
 
-                kubectl rollout status \
-                    deployment/availability-service \
-                    --namespace "$K8S_NAMESPACE" \
-                    --timeout=240s
-
-                echo "EKS deployment completed successfully."
-            '''
-                }
+                    echo "EKS deployment completed successfully."
+                '''
             }
         }
     }
@@ -388,9 +359,9 @@ String resolvePipelineVersion() {
     String branch = env.BRANCH_NAME ?: 'unknown'
 
     String normalizedBranch =
-        branch
-            .toLowerCase()
-            .replaceAll('[^a-z0-9.-]', '-')
+            branch
+                    .toLowerCase()
+                    .replaceAll('[^a-z0-9.-]', '-')
 
     return "${normalizedBranch}-${env.SHORT_COMMIT}"
 }
