@@ -23,15 +23,26 @@ RUN apt-get update \
         docker-compose-plugin \
     && ARCH="$(uname -m)" \
     && case "$ARCH" in \
-        x86_64|aarch64) ;; \
-        *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
+        x86_64) \
+            AWS_ARCH="x86_64"; \
+            K8S_ARCH="amd64" ;; \
+        aarch64) \
+            AWS_ARCH="aarch64"; \
+            K8S_ARCH="arm64" ;; \
+        *) \
+            echo "Unsupported architecture: $ARCH"; \
+            exit 1 ;; \
        esac \
     && curl -fsSL \
-        "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" \
+        "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" \
         -o /tmp/awscliv2.zip \
     && unzip -q /tmp/awscliv2.zip -d /tmp \
     && /tmp/aws/install \
     && rm -rf /tmp/aws /tmp/awscliv2.zip \
+    && curl -fsSL \
+        "https://dl.k8s.io/release/v1.36.3/bin/linux/${K8S_ARCH}/kubectl" \
+        -o /usr/local/bin/kubectl \
+    && chmod +x /usr/local/bin/kubectl \
     && rm -rf /var/lib/apt/lists/*
 
 USER jenkins
