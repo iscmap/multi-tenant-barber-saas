@@ -21,6 +21,18 @@ Parameters:
   PrivateSubnet2Id:
     Type: AWS::EC2::Subnet::Id
 
+  AlertEmail:
+    Type: String
+    Default: ""
+    Description: Optional email endpoint for CloudWatch alarm notifications
+
+
+Conditions:
+  HasAlertEmail: !Not
+    - !Equals
+      - !Ref AlertEmail
+      - ""
+
 
 Resources:
 
@@ -176,6 +188,121 @@ Resources:
         Environment: !Ref Environment
 
 
+  OperationsAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${ProjectName}-${Environment}-operations-alerts"
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+        - Key: Environment
+          Value: !Ref Environment
+
+
+  OperationsEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlertEmail
+    Properties:
+      TopicArn: !Ref OperationsAlertTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+
+  HighNodeCpuAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-${Environment}-high-node-cpu"
+
+      AlarmDescription: EKS node CPU utilization is above 80 percent
+
+      Namespace: ContainerInsights
+      MetricName: node_cpu_utilization
+
+      Dimensions:
+        - Name: ClusterName
+          Value: !Sub "${ProjectName}-${Environment}"
+
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+
+      Threshold: 80
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+      TreatMissingData: notBreaching
+
+      AlarmActions:
+        - !Ref OperationsAlertTopic
+
+      OKActions:
+        - !Ref OperationsAlertTopic
+
+
+  HighNodeMemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-${Environment}-high-node-memory"
+
+      AlarmDescription: EKS node memory utilization is above 80 percent
+
+      Namespace: ContainerInsights
+      MetricName: node_memory_utilization
+
+      Dimensions:
+        - Name: ClusterName
+          Value: !Sub "${ProjectName}-${Environment}"
+
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+
+      Threshold: 80
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+      TreatMissingData: notBreaching
+
+      AlarmActions:
+        - !Ref OperationsAlertTopic
+
+      OKActions:
+        - !Ref OperationsAlertTopic
+
+
+  FailedNodeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-${Environment}-failed-node"
+
+      AlarmDescription: One or more EKS worker nodes are reporting a failed condition
+
+      Namespace: ContainerInsights
+      MetricName: cluster_failed_node_count
+
+      Dimensions:
+        - Name: ClusterName
+          Value: !Sub "${ProjectName}-${Environment}"
+
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+      TreatMissingData: notBreaching
+
+      AlarmActions:
+        - !Ref OperationsAlertTopic
+
+      OKActions:
+        - !Ref OperationsAlertTopic
+
+
   OperationsDashboard:
     Type: AWS::CloudWatch::Dashboard
     Properties:
@@ -197,9 +324,24 @@ Resources:
               }
             },
             {
-              "type": "metric",
+              "type": "alarm",
               "x": 0,
               "y": 2,
+              "width": 24,
+              "height": 5,
+              "properties": {
+                "title": "Operational Alarms",
+                "alarms": [
+                  "${HighNodeCpuAlarm.Arn}",
+                  "${HighNodeMemoryAlarm.Arn}",
+                  "${FailedNodeAlarm.Arn}"
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 7,
               "width": 12,
               "height": 6,
               "properties": {
@@ -228,7 +370,7 @@ Resources:
             {
               "type": "metric",
               "x": 12,
-              "y": 2,
+              "y": 7,
               "width": 12,
               "height": 6,
               "properties": {
@@ -257,7 +399,7 @@ Resources:
             {
               "type": "metric",
               "x": 0,
-              "y": 8,
+              "y": 13,
               "width": 12,
               "height": 5,
               "properties": {
@@ -279,7 +421,7 @@ Resources:
             {
               "type": "metric",
               "x": 12,
-              "y": 8,
+              "y": 13,
               "width": 12,
               "height": 5,
               "properties": {
@@ -303,7 +445,7 @@ Resources:
             {
               "type": "log",
               "x": 0,
-              "y": 13,
+              "y": 18,
               "width": 24,
               "height": 7,
               "properties": {
@@ -316,7 +458,7 @@ Resources:
             {
               "type": "log",
               "x": 0,
-              "y": 20,
+              "y": 25,
               "width": 24,
               "height": 7,
               "properties": {
@@ -363,3 +505,7 @@ Outputs:
   OperationsDashboardName:
     Description: CloudWatch operations dashboard name
     Value: !Ref OperationsDashboard
+
+  OperationsAlertTopicArn:
+    Description: SNS topic for operational alerts
+    Value: !Ref OperationsAlertTopic
