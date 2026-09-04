@@ -13,8 +13,15 @@ pipeline {
         INTEGRATION_BRANCH = 'develop'
 
         AWS_REGION = 'us-east-1'
-        BOOKING_ECR_REPOSITORY = 'barber-saas/dev/booking-service'
-        AVAILABILITY_ECR_REPOSITORY = 'barber-saas/dev/availability-service'
+
+        BOOKING_ECR_REPOSITORY =
+                'barber-saas/dev/booking-service'
+
+        AVAILABILITY_ECR_REPOSITORY =
+                'barber-saas/dev/availability-service'
+
+        EKS_CLUSTER = 'barber-saas-dev'
+        K8S_NAMESPACE = 'default'
     }
 
     stages {
@@ -277,7 +284,85 @@ pipeline {
                 }
             }
         }
-        
+
+        stage('EKS Deploy') {
+            when {
+                branch 'develop'
+            }
+
+            steps {
+                withCredentials([
+                        string(
+                                credentialsId: 'barber-aws-access-key-id',
+                                variable: 'AWS_ACCESS_KEY_ID'
+                        ),
+                        string(
+                                credentialsId: 'barber-aws-secret-access-key',
+                                variable: 'AWS_SECRET_ACCESS_KEY'
+                        ),
+                        string(
+                                credentialsId: 'barber-aws-session-token',
+                                variable: 'AWS_SESSION_TOKEN'
+                        )
+                ]) {
+                    sh '''
+                set -e
+
+                echo "Configuring access to EKS..."
+
+                aws eks update-kubeconfig \
+                    --name "$EKS_CLUSTER" \
+                    --region "$AWS_REGION"
+
+                echo "Verifying EKS connectivity..."
+
+                kubectl get nodes
+
+                echo "Resolving ECR registry..."
+
+                AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+                    --query Account \
+                    --output text)
+
+                ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+                BOOKING_IMAGE="${ECR_REGISTRY}/${BOOKING_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+
+                AVAILABILITY_IMAGE="${ECR_REGISTRY}/${AVAILABILITY_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+
+                echo "Deploying booking-service version ${PIPELINE_VERSION}..."
+
+                kubectl set image \
+                    deployment/booking-service \
+                    booking-service="$BOOKING_IMAGE" \
+                    --namespace "$K8S_NAMESPACE"
+
+                echo "Deploying availability-service version ${PIPELINE_VERSION}..."
+
+                kubectl set image \
+                    deployment/availability-service \
+                    availability-service="$AVAILABILITY_IMAGE" \
+                    --namespace "$K8S_NAMESPACE"
+
+                echo "Waiting for booking-service rollout..."
+
+                kubectl rollout status \
+                    deployment/booking-service \
+                    --namespace "$K8S_NAMESPACE" \
+                    --timeout=240s
+
+                echo "Waiting for availability-service rollout..."
+
+                kubectl rollout status \
+                    deployment/availability-service \
+                    --namespace "$K8S_NAMESPACE" \
+                    --timeout=240s
+
+                echo "EKS deployment completed successfully."
+            '''
+                }
+            }
+        }
     }
 
     post {
