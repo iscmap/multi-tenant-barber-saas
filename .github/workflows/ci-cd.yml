@@ -1,0 +1,586 @@
+name: Barber SaaS CI/CD
+
+on:
+  push:
+    branches:
+      - "**"
+
+    tags:
+      - "v*.*.*"
+
+  pull_request:
+    branches:
+      - develop
+
+  workflow_dispatch:
+
+
+permissions:
+  contents: read
+  id-token: write
+
+
+concurrency:
+  group: barber-saas-${{ github.ref }}
+  cancel-in-progress: true
+
+
+env:
+  AWS_REGION: us-east-1
+
+  EKS_CLUSTER: barber-saas-dev
+  K8S_NAMESPACE: default
+
+  BOOKING_ECR_REPOSITORY: barber-saas/dev/booking-service
+  AVAILABILITY_ECR_REPOSITORY: barber-saas/dev/availability-service
+
+
+jobs:
+
+  ci-cd:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+
+      - name: Pipeline metadata
+        shell: bash
+        run: |
+          set -e
+
+          SHORT_COMMIT="${GITHUB_SHA::8}"
+
+          if [[ "$GITHUB_REF" == refs/tags/* ]] &&
+             [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+
+              PIPELINE_VERSION="${GITHUB_REF_NAME#v}"
+
+          else
+
+              BRANCH_NAME="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+
+              NORMALIZED_BRANCH=$(echo "$BRANCH_NAME" |
+                  tr '[:upper:]' '[:lower:]' |
+                  sed 's/[^a-z0-9.-]/-/g')
+
+              PIPELINE_VERSION="${NORMALIZED_BRANCH}-${SHORT_COMMIT}"
+          fi
+
+          echo "SHORT_COMMIT=$SHORT_COMMIT" >> "$GITHUB_ENV"
+          echo "PIPELINE_VERSION=$PIPELINE_VERSION" >> "$GITHUB_ENV"
+
+          echo "Project: barber-saas"
+          echo "Branch: ${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          echo "Commit: $SHORT_COMMIT"
+          echo "Version: $PIPELINE_VERSION"
+
+
+      - name: Generate CI JWT secret
+        shell: bash
+        run: |
+          set -e
+
+          JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')
+
+          echo "::add-mask::$JWT_SECRET"
+          echo "JWT_SECRET=$JWT_SECRET" >> "$GITHUB_ENV"
+
+
+      - name: Gradle Build
+        run: |
+          ./gradlew clean assemble --no-daemon
+
+
+      - name: Unit Tests
+        run: |
+          ./gradlew \
+            :shared-kernel:test \
+            :booking-service:unitTest \
+            :availability-service:unitTest \
+            --no-daemon
+
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-test-results
+          path: |
+            shared-kernel/build/test-results/**/*.xml
+            booking-service/build/test-results/unitTest/**/*.xml
+            availability-service/build/test-results/unitTest/**/*.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+
+      - name: Formatting
+        run: |
+          ./gradlew spotlessCheck --no-daemon
+
+
+      - name: Start integration-test infrastructure
+        shell: bash
+        run: |
+          set -e
+
+          docker compose \
+            -p multi-tenant-barber-saas \
+            up -d postgres localstack kafka
+
+          wait_for_container() {
+              container="$1"
+
+              echo "Waiting for $container..."
+
+              for i in $(seq 1 60); do
+
+                  status=$(docker inspect \
+                      --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+                      "$container" 2>/dev/null || echo "missing")
+
+                  if [ "$status" = "healthy" ] ||
+                     [ "$status" = "running" ]; then
+
+                      echo "$container is ready: $status"
+                      return 0
+                  fi
+
+                  sleep 2
+              done
+
+              echo "$container did not become ready."
+
+              docker logs "$container" || true
+
+              return 1
+          }
+
+          wait_for_container barber-postgres
+          wait_for_container barber-localstack
+          wait_for_container barber-kafka
+
+
+      - name: Booking integration tests
+        shell: bash
+        run: |
+          set -e
+
+          DB_URL='jdbc:postgresql://localhost:5432/barbersaas?currentSchema=booking' \
+          DB_USERNAME='postgres' \
+          DB_PASSWORD='postgres' \
+          AWS_ENDPOINT='http://localhost:4566' \
+          AWS_REGION='us-east-1' \
+          AWS_ACCESS_KEY_ID='test' \
+          AWS_SECRET_ACCESS_KEY='test' \
+          KAFKA_BOOTSTRAP_SERVERS='localhost:9092' \
+          ./gradlew :booking-service:integrationTest --no-daemon
+
+
+      - name: Booking integration test diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          echo "=== Booking integration test failure ==="
+
+          if [ -d "booking-service/build/test-results/integrationTest" ]; then
+            grep -R -n -A 20 -B 5 \
+              -E "FlywayException|PSQLException|Caused by:|Migration|schema|ERROR" \
+              booking-service/build/test-results/integrationTest \
+              || true
+          else
+            echo "Integration test results directory not found."
+          fi
+
+
+      - name: Availability integration tests
+        shell: bash
+        run: |
+          set -e
+
+          DB_URL='jdbc:postgresql://localhost:5432/barbersaas?currentSchema=availability' \
+          DB_USERNAME='postgres' \
+          DB_PASSWORD='postgres' \
+          AWS_ENDPOINT='http://localhost:4566' \
+          AWS_REGION='us-east-1' \
+          AWS_ACCESS_KEY_ID='test' \
+          AWS_SECRET_ACCESS_KEY='test' \
+          KAFKA_BOOTSTRAP_SERVERS='localhost:9092' \
+          ./gradlew :availability-service:integrationTest --no-daemon
+
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-test-results
+          path: |
+            booking-service/build/test-results/integrationTest/**/*.xml
+            availability-service/build/test-results/integrationTest/**/*.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+
+      - name: Docker Build
+        shell: bash
+        run: |
+          set -e
+
+          docker compose build \
+            booking-service \
+            availability-service
+
+          docker image inspect \
+            barber-booking-service:8.4 \
+            > /dev/null
+
+          docker image inspect \
+            barber-availability-service:8.4 \
+            > /dev/null
+
+          echo "Docker images built successfully."
+
+
+      - name: Configure AWS credentials
+        if: >
+          github.event_name == 'push' &&
+          (
+            github.ref == 'refs/heads/develop' ||
+            github.ref == 'refs/heads/main' ||
+            startsWith(github.ref, 'refs/tags/v')
+          )
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: barber-saas-github-actions
+
+
+      - name: ECR Publish
+        if: >
+          github.event_name == 'push' &&
+          (
+            github.ref == 'refs/heads/develop' ||
+            github.ref == 'refs/heads/main' ||
+            startsWith(github.ref, 'refs/tags/v')
+          )
+        shell: bash
+        run: |
+          set -e
+
+          echo "Validating AWS authentication..."
+
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+              --query Account \
+              --output text)
+
+          ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+          BOOKING_IMAGE="${ECR_REGISTRY}/${BOOKING_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+
+          AVAILABILITY_IMAGE="${ECR_REGISTRY}/${AVAILABILITY_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+
+          echo "Authenticating Docker with ECR..."
+
+          aws ecr get-login-password \
+              --region "$AWS_REGION" |
+              docker login \
+                  --username AWS \
+                  --password-stdin \
+                  "$ECR_REGISTRY"
+
+          echo "Tagging images..."
+
+          docker tag \
+              barber-booking-service:8.4 \
+              "$BOOKING_IMAGE"
+
+          docker tag \
+              barber-availability-service:8.4 \
+              "$AVAILABILITY_IMAGE"
+
+          echo "Pushing booking-service..."
+
+          docker push "$BOOKING_IMAGE"
+
+          echo "Pushing availability-service..."
+
+          docker push "$AVAILABILITY_IMAGE"
+
+          echo "Verifying ECR images..."
+
+          aws ecr describe-images \
+              --repository-name "$BOOKING_ECR_REPOSITORY" \
+              --image-ids "imageTag=$PIPELINE_VERSION" \
+              --region "$AWS_REGION" \
+              > /dev/null
+
+          aws ecr describe-images \
+              --repository-name "$AVAILABILITY_ECR_REPOSITORY" \
+              --image-ids "imageTag=$PIPELINE_VERSION" \
+              --region "$AWS_REGION" \
+              > /dev/null
+
+          docker logout "$ECR_REGISTRY"
+
+          echo "ECR publish completed successfully."
+
+
+      - name: Configure EKS
+        if: >
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/develop'
+        shell: bash
+        run: |
+          set -e
+
+          aws eks update-kubeconfig \
+              --name "$EKS_CLUSTER" \
+              --region "$AWS_REGION"
+
+          kubectl get deployments \
+              --namespace "$K8S_NAMESPACE"
+
+
+      - name: Mark deployment started
+        if: >
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/develop'
+        run: |
+          echo "DEPLOYMENT_STARTED=true" >> "$GITHUB_ENV"
+
+
+      - name: EKS Deploy
+        if: >
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/develop'
+        shell: bash
+        run: |
+          set -e
+
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+              --query Account \
+              --output text)
+
+          ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+          BOOKING_IMAGE="${ECR_REGISTRY}/${BOOKING_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+
+          AVAILABILITY_IMAGE="${ECR_REGISTRY}/${AVAILABILITY_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+
+          echo "Deploying booking-service version ${PIPELINE_VERSION}..."
+
+          kubectl set image \
+              deployment/booking-service \
+              booking-service="$BOOKING_IMAGE" \
+              --namespace "$K8S_NAMESPACE"
+
+          echo "Deploying availability-service version ${PIPELINE_VERSION}..."
+
+          kubectl set image \
+              deployment/availability-service \
+              availability-service="$AVAILABILITY_IMAGE" \
+              --namespace "$K8S_NAMESPACE"
+
+          echo "Waiting for booking-service rollout..."
+
+          kubectl rollout status \
+              deployment/booking-service \
+              --namespace "$K8S_NAMESPACE" \
+              --timeout=240s
+
+          echo "Waiting for availability-service rollout..."
+
+          kubectl rollout status \
+              deployment/availability-service \
+              --namespace "$K8S_NAMESPACE" \
+              --timeout=240s
+
+          echo "EKS deployment completed successfully."
+
+
+      - name: Deployment Verification
+        if: >
+          success() &&
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/develop'
+        shell: bash
+        run: |
+          set -e
+
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
+              --query Account \
+              --output text)
+
+          ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+          EXPECTED_BOOKING_IMAGE="${ECR_REGISTRY}/${BOOKING_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+
+          EXPECTED_AVAILABILITY_IMAGE="${ECR_REGISTRY}/${AVAILABILITY_ECR_REPOSITORY}:${PIPELINE_VERSION}"
+
+          ACTUAL_BOOKING_IMAGE=$(kubectl get deployment booking-service \
+              --namespace "$K8S_NAMESPACE" \
+              -o jsonpath='{.spec.template.spec.containers[?(@.name=="booking-service")].image}')
+
+          ACTUAL_AVAILABILITY_IMAGE=$(kubectl get deployment availability-service \
+              --namespace "$K8S_NAMESPACE" \
+              -o jsonpath='{.spec.template.spec.containers[?(@.name=="availability-service")].image}')
+
+          if [ "$ACTUAL_BOOKING_IMAGE" != "$EXPECTED_BOOKING_IMAGE" ]; then
+
+              echo "Unexpected booking-service image."
+              echo "Expected: $EXPECTED_BOOKING_IMAGE"
+              echo "Actual:   $ACTUAL_BOOKING_IMAGE"
+
+              exit 1
+          fi
+
+          if [ "$ACTUAL_AVAILABILITY_IMAGE" != "$EXPECTED_AVAILABILITY_IMAGE" ]; then
+
+              echo "Unexpected availability-service image."
+              echo "Expected: $EXPECTED_AVAILABILITY_IMAGE"
+              echo "Actual:   $ACTUAL_AVAILABILITY_IMAGE"
+
+              exit 1
+          fi
+
+          echo "Waiting for pods..."
+
+          kubectl wait \
+              --for=condition=Ready \
+              pod \
+              -l app=booking-service \
+              --namespace "$K8S_NAMESPACE" \
+              --timeout=120s
+
+          kubectl wait \
+              --for=condition=Ready \
+              pod \
+              -l app=availability-service \
+              --namespace "$K8S_NAMESPACE" \
+              --timeout=120s
+
+          BOOKING_PF_PID=""
+          AVAILABILITY_PF_PID=""
+
+          cleanup_port_forward() {
+
+              if [ -n "$BOOKING_PF_PID" ]; then
+                  kill "$BOOKING_PF_PID" 2>/dev/null || true
+              fi
+
+              if [ -n "$AVAILABILITY_PF_PID" ]; then
+                  kill "$AVAILABILITY_PF_PID" 2>/dev/null || true
+              fi
+          }
+
+          trap cleanup_port_forward EXIT
+
+          kubectl port-forward \
+              deployment/booking-service \
+              18081:8081 \
+              --namespace "$K8S_NAMESPACE" \
+              > /tmp/booking-port-forward.log 2>&1 &
+
+          BOOKING_PF_PID=$!
+
+          kubectl port-forward \
+              deployment/availability-service \
+              18082:8082 \
+              --namespace "$K8S_NAMESPACE" \
+              > /tmp/availability-port-forward.log 2>&1 &
+
+          AVAILABILITY_PF_PID=$!
+
+          sleep 5
+
+          echo "Verifying booking-service readiness..."
+
+          curl \
+              --fail \
+              --silent \
+              --show-error \
+              http://127.0.0.1:18081/readyz \
+              > /dev/null
+
+          echo "Verifying availability-service readiness..."
+
+          curl \
+              --fail \
+              --silent \
+              --show-error \
+              http://127.0.0.1:18082/readyz \
+              > /dev/null
+
+          echo "Deployment verification completed successfully."
+
+
+      - name: Rollback failed deployment
+        if: >
+          failure() &&
+          env.DEPLOYMENT_STARTED == 'true' &&
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/develop'
+        shell: bash
+        run: |
+          echo "Deployment failed. Rolling back..."
+
+          kubectl rollout undo \
+              deployment/booking-service \
+              --namespace "$K8S_NAMESPACE" \
+              || true
+
+          kubectl rollout undo \
+              deployment/availability-service \
+              --namespace "$K8S_NAMESPACE" \
+              || true
+
+          echo "Waiting for rollback..."
+
+          kubectl rollout status \
+              deployment/booking-service \
+              --namespace "$K8S_NAMESPACE" \
+              --timeout=240s \
+              || true
+
+          kubectl rollout status \
+              deployment/availability-service \
+              --namespace "$K8S_NAMESPACE" \
+              --timeout=240s \
+              || true
+
+          echo "Rollback attempt completed."
+
+
+      - name: Integration infrastructure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          docker ps -a || true
+
+          docker logs barber-postgres \
+              --tail=100 \
+              2>/dev/null || true
+
+          docker logs barber-localstack \
+              --tail=100 \
+              2>/dev/null || true
+
+          docker logs barber-kafka \
+              --tail=100 \
+              2>/dev/null || true

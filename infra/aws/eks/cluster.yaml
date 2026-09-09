@@ -26,6 +26,14 @@ Parameters:
     Default: ""
     Description: Optional email endpoint for CloudWatch alarm notifications
 
+  GitHubOwner:
+    Type: String
+    Default: iscmap
+
+  GitHubRepository:
+    Type: String
+    Default: multi-tenant-barber-saas
+
 
 Conditions:
   HasAlertEmail: !Not
@@ -186,6 +194,122 @@ Resources:
       Tags:
         Project: !Ref ProjectName
         Environment: !Ref Environment
+
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+
+      ClientIdList:
+        - sts.amazonaws.com
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+        - Key: Environment
+          Value: !Ref Environment
+
+
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-github-actions-role"
+
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+
+        Statement:
+          - Effect: Allow
+
+            Principal:
+              Federated: !Ref GitHubOidcProvider
+
+            Action:
+              - sts:AssumeRoleWithWebIdentity
+
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+
+              ForAnyValue:StringLike:
+                token.actions.githubusercontent.com:sub:
+                  - !Sub "repo:${GitHubOwner}/${GitHubRepository}:ref:refs/heads/develop"
+                  - !Sub "repo:${GitHubOwner}/${GitHubRepository}:ref:refs/heads/main"
+                  - !Sub "repo:${GitHubOwner}/${GitHubRepository}:ref:refs/tags/v*"
+
+      Policies:
+        - PolicyName: GitHubActionsCicd
+
+          PolicyDocument:
+            Version: "2012-10-17"
+
+            Statement:
+
+              - Sid: EcrAuthentication
+                Effect: Allow
+
+                Action:
+                  - ecr:GetAuthorizationToken
+
+                Resource: "*"
+
+
+              - Sid: EcrImages
+                Effect: Allow
+
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:CompleteLayerUpload
+                  - ecr:DescribeImages
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/barber-saas/dev/booking-service"
+                  - !Sub "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/barber-saas/dev/availability-service"
+
+
+              - Sid: EksClusterAccess
+                Effect: Allow
+
+                Action:
+                  - eks:DescribeCluster
+
+                Resource: !GetAtt EksCluster.Arn
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+        - Key: Environment
+          Value: !Ref Environment
+
+
+  GitHubActionsEksAccess:
+    Type: AWS::EKS::AccessEntry
+
+    DependsOn:
+      - EksCluster
+      - GitHubActionsRole
+
+    Properties:
+      ClusterName: !Ref EksCluster
+
+      PrincipalArn: !GetAtt GitHubActionsRole.Arn
+
+      Type: STANDARD
+
+      AccessPolicies:
+        - PolicyArn: arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminPolicy
+
+          AccessScope:
+            Type: namespace
+
+            Namespaces:
+              - default
 
 
   OperationsAlertTopic:
@@ -509,3 +633,7 @@ Outputs:
   OperationsAlertTopicArn:
     Description: SNS topic for operational alerts
     Value: !Ref OperationsAlertTopic
+
+  GitHubActionsRoleArn:
+    Description: IAM role assumed by GitHub Actions through OIDC
+    Value: !GetAtt GitHubActionsRole.Arn
