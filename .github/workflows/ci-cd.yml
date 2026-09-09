@@ -189,7 +189,10 @@ jobs:
           AWS_ACCESS_KEY_ID='test' \
           AWS_SECRET_ACCESS_KEY='test' \
           KAFKA_BOOTSTRAP_SERVERS='localhost:9092' \
-          ./gradlew :booking-service:integrationTest --no-daemon
+          ./gradlew :booking-service:integrationTest \
+            --no-daemon \
+            --stacktrace \
+            --info
 
 
       - name: Availability integration tests
