@@ -181,14 +181,14 @@ jobs:
         run: |
           set -e
 
-          DB_URL='jdbc:postgresql://postgres:5432/barbersaas?currentSchema=booking' \
+          DB_URL='jdbc:postgresql://localhost:5432/barbersaas?currentSchema=booking' \
           DB_USERNAME='postgres' \
           DB_PASSWORD='postgres' \
-          AWS_ENDPOINT='http://localstack:4566' \
+          AWS_ENDPOINT='http://localhost:4566' \
           AWS_REGION='us-east-1' \
           AWS_ACCESS_KEY_ID='test' \
           AWS_SECRET_ACCESS_KEY='test' \
-          KAFKA_BOOTSTRAP_SERVERS='kafka:29092' \
+          KAFKA_BOOTSTRAP_SERVERS='localhost:9092' \
           ./gradlew :booking-service:integrationTest --no-daemon
 
 
@@ -197,14 +197,14 @@ jobs:
         run: |
           set -e
 
-          DB_URL='jdbc:postgresql://postgres:5432/barbersaas?currentSchema=availability' \
+          DB_URL='jdbc:postgresql://localhost:5432/barbersaas?currentSchema=availability' \
           DB_USERNAME='postgres' \
           DB_PASSWORD='postgres' \
-          AWS_ENDPOINT='http://localstack:4566' \
+          AWS_ENDPOINT='http://localhost:4566' \
           AWS_REGION='us-east-1' \
           AWS_ACCESS_KEY_ID='test' \
           AWS_SECRET_ACCESS_KEY='test' \
-          KAFKA_BOOTSTRAP_SERVERS='kafka:29092' \
+          KAFKA_BOOTSTRAP_SERVERS='localhost:9092' \
           ./gradlew :availability-service:integrationTest --no-daemon
 
 
