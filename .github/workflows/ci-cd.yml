@@ -189,10 +189,23 @@ jobs:
           AWS_ACCESS_KEY_ID='test' \
           AWS_SECRET_ACCESS_KEY='test' \
           KAFKA_BOOTSTRAP_SERVERS='localhost:9092' \
-          ./gradlew :booking-service:integrationTest \
-            --no-daemon \
-            --stacktrace \
-            --info
+          ./gradlew :booking-service:integrationTest --no-daemon
+
+
+      - name: Booking integration test diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          echo "=== Booking integration test failure ==="
+
+          if [ -d "booking-service/build/test-results/integrationTest" ]; then
+            grep -R -n -A 20 -B 5 \
+              -E "FlywayException|PSQLException|Caused by:|Migration|schema|ERROR" \
+              booking-service/build/test-results/integrationTest \
+              || true
+          else
+            echo "Integration test results directory not found."
+          fi
 
 
       - name: Availability integration tests
